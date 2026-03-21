@@ -1,0 +1,10 @@
+node_modules/
+dist/
+client/dist/
+server/uploads/
+.env
+.DS_Store
+coverage/
+cache/
+artifacts/
+server/.data/
