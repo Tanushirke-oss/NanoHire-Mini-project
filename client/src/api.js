@@ -68,7 +68,20 @@ async function resolveApiBaseUrl(forceRefresh = false) {
 
   const hostname = window.location.hostname;
   if (!isLocalDevHost(hostname)) {
-    return DEFAULT_LOCAL_API_URL;
+    const cached = getCachedApiBaseUrl();
+    if (cached && (await probeApiHealth(cached, 900))) {
+      return cached;
+    }
+
+    const sameOrigin = window.location.origin;
+    if (await probeApiHealth(sameOrigin, 900)) {
+      setCachedApiBaseUrl(sameOrigin);
+      return sameOrigin;
+    }
+
+    // In production, never force localhost. Return same-origin as a safe fallback
+    // so errors are explicit (404/config) rather than unreachable localhost errors.
+    return sameOrigin;
   }
 
   if (!forceRefresh && resolvedApiBaseUrl) {
