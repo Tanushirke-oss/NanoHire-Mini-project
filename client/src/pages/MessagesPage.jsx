@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getMessages, getConversation, sendMessage, getGig, getGigs, getUser, getUsers } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 export default function MessagesPage() {
   const { currentUser } = useAuth();
@@ -279,7 +280,9 @@ export default function MessagesPage() {
                 >
                   <div className="conversation-preview">
                     <div className="conversation-title">
-                      {usersMap[conv.otherUserId]?.name || "User"}
+                      <Link to={`/profile/${conv.otherUserId}`} className="author-name">
+                        {usersMap[conv.otherUserId]?.name || "User"}
+                      </Link>
                       {conv.unreadCount > 0 && (
                         <span className="unread-badge">{conv.unreadCount}</span>
                       )}
@@ -311,7 +314,9 @@ export default function MessagesPage() {
                         alt={otherUser.name}
                       />
                       <div>
-                        <h3>{otherUser.name}</h3>
+                        <h3>
+                          <Link to={`/profile/${otherUser.id}`} className="author-name">{otherUser.name}</Link>
+                        </h3>
                         {gig && <p className="task-name">📋 {gig.title}</p>}
                       </div>
                     </>

@@ -12,7 +12,8 @@ const applicationSchema = new mongoose.Schema(
   {
     studentId: { type: String, required: true },
     note: { type: String, default: "" },
-    resumeUrl: { type: String, default: "" }
+    resumeUrl: { type: String, default: "" },
+    workSampleUrl: { type: String, default: "" }
   },
   { _id: true, timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -32,6 +33,8 @@ const gigSchema = new mongoose.Schema(
     title: { type: String, required: true },
     description: { type: String, required: true },
     fee: { type: Number, required: true },
+    feeMin: { type: Number, default: null },
+    feeMax: { type: Number, default: null },
     deadline: { type: String, required: true },
     tags: [{ type: String }],
     hirerId: { type: String, required: true },
@@ -79,8 +82,15 @@ gigSchema.set("toJSON", {
       studentId: a.studentId,
       note: a.note,
       resumeUrl: a.resumeUrl || "",
+      workSampleUrl: a.workSampleUrl || "",
       createdAt: a.createdAt
     }));
+
+    if (Number.isFinite(ret.feeMin) && Number.isFinite(ret.feeMax)) {
+      ret.budgetLabel = `Rs. ${ret.feeMin} - Rs. ${ret.feeMax}`;
+    } else {
+      ret.budgetLabel = `Rs. ${ret.fee}`;
+    }
 
     ret.updates = (ret.updates || []).map((u) => ({
       id: u._id.toString(),

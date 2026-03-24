@@ -1,17 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import { commentOnPost, createPost, getPosts, getUser, sharePost, togglePostLike } from "../api";
+import {
+  commentOnPost,
+  createPost,
+  deletePost,
+  getGigs,
+  getPosts,
+  getUser,
+  sharePost,
+  togglePostLike,
+} from "../api";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
+import TaskTimer from "../components/TaskTimer";
+import MotivationalMessage from "../components/MotivationalMessage";
 
 export default function HomePage() {
   const { currentUser } = useAuth();
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState("");
+  const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
   const [mediaFile, setMediaFile] = useState(null);
   const [authorsMap, setAuthorsMap] = useState({});
   const [commentDrafts, setCommentDrafts] = useState({});
   const [posting, setPosting] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [selectedTasks, setSelectedTasks] = useState([]);
 
   async function loadPosts() {
     const data = await getPosts();
@@ -92,24 +106,67 @@ export default function HomePage() {
     loadPosts();
   }, []);
 
+  useEffect(() => {
+    async function loadSelectedTasks() {
+      if (!currentUser?.id || currentUser.role !== "student") {
+        setSelectedTasks([]);
+        return;
+      }
+
+      const gigs = await getGigs();
+      const mine = gigs
+        .filter(
+          (gig) =>
+            gig.selectedStudentId === currentUser.id &&
+            ["in_progress", "submitted"].includes(gig.status)
+        )
+        .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+      setSelectedTasks(mine);
+    }
+
+    loadSelectedTasks();
+  }, [currentUser?.id, currentUser?.role]);
+
+  const nearestSelectedTask = selectedTasks[0] || null;
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!currentUser || !content.trim()) {
+    if (!currentUser || !postTitle.trim()) {
       return;
     }
 
     setPosting(true);
     try {
-      await createPost({
-        content,
-        mediaFile
-      });
+      const formData = new FormData();
+      formData.append("content", content);
+      formData.append("title", postTitle);
+      formData.append("body", postBody);
+      if (mediaFile) formData.append("media", mediaFile);
+
+      await createPost(formData);
 
       setContent("");
+      setPostTitle("");
+      setPostBody("");
       setMediaFile(null);
       await loadPosts();
     } finally {
       setPosting(false);
+    }
+  }
+
+  async function handleDeletePost(postId) {
+    if (!postId) return;
+
+    const confirmed = window.confirm("Delete this post permanently?");
+    if (!confirmed) return;
+
+    setActionError("");
+    try {
+      await deletePost(postId);
+      setPosts((prev) => prev.filter((post) => post.id !== postId));
+    } catch (error) {
+      setActionError(error?.response?.data?.message || "Could not delete post right now.");
     }
   }
 
@@ -154,6 +211,16 @@ export default function HomePage() {
               <p>
                 Apply for internships, share updates, and optionally post your own task as a hirer when you need help.
               </p>
+              {nearestSelectedTask ? (
+                <div className="home-selected-task-clock">
+                  <h3>Small Clock For Your Current Task</h3>
+                  <TaskTimer deadline={nearestSelectedTask.deadline} />
+                  <p>
+                    Active task: <strong>{nearestSelectedTask.title}</strong>
+                  </p>
+                  <MotivationalMessage isSelected={true} />
+                </div>
+              ) : null}
             </>
           )}
         </div>
@@ -166,12 +233,29 @@ export default function HomePage() {
                 src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || "User")}&background=random`}
                 alt="avatar"
               />
-              <textarea
-                placeholder="Share opportunity updates, behind-the-scenes, or a call for collaboration"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                required
-              />
+              <div className="composer-fields">
+                <input
+                  type="text"
+                  placeholder="Post title"
+                  value={postTitle}
+                  onChange={(e) => setPostTitle(e.target.value)}
+                  className="composer-title"
+                  required
+                />
+                <textarea
+                  placeholder="Body of the post"
+                  value={postBody}
+                  onChange={(e) => setPostBody(e.target.value)}
+                  className="composer-body"
+                  rows={3}
+                />
+                <textarea
+                  placeholder="Share opportunity updates, behind-the-scenes, or a call for collaboration"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={2}
+                />
+              </div>
             </div>
             <div className="composer-footer">
               <label className="composer-file-label" htmlFor="post-media-file">
@@ -222,13 +306,17 @@ export default function HomePage() {
                       )}
                     </div>
                     <div className="post-content">
-                      <p>{post.content}</p>
+                      {post.title && <h3 className="post-title">{post.title}</h3>}
+                      {post.body && <p className="post-body">{post.body}</p>}
+                      {post.content ? <p className="post-text">{post.content}</p> : null}
                       {post.mediaUrl ? (
-                        post.mediaType === "video" ? (
-                          <video controls src={post.mediaUrl} className="post-media" />
-                        ) : (
-                          <img src={post.mediaUrl} alt="Post content" className="post-media" />
-                        )
+                        <div className="post-media-container">
+                          {post.mediaType === "video" ? (
+                            <video controls src={post.mediaUrl} className="post-media" />
+                          ) : (
+                            <img src={post.mediaUrl} alt="Post content" className="post-media" />
+                          )}
+                        </div>
                       ) : null}
                     </div>
                     <div className="post-actions">
@@ -249,6 +337,15 @@ export default function HomePage() {
                       <button type="button" className="action-btn" onClick={() => handleShare(post.id)}>
                         📤 Share ({post.sharesCount || 0})
                       </button>
+                      {post.authorId === currentUser?.id ? (
+                        <button
+                          type="button"
+                          className="action-btn action-btn-danger"
+                          onClick={() => handleDeletePost(post.id)}
+                        >
+                          🗑️ Delete Post
+                        </button>
+                      ) : null}
                     </div>
 
                     <div className="post-comments">
@@ -256,7 +353,9 @@ export default function HomePage() {
                         const commentUser = authorsMap[comment.userId];
                         return (
                           <div key={`${comment.userId}-${comment.createdAt}`} className="comment-item">
-                            <strong>{commentUser?.name || "User"}</strong>
+                            <Link to={`/profile/${comment.userId}`} className="author-name">
+                              {commentUser?.name || "User"}
+                            </Link>
                             <span>{comment.content}</span>
                           </div>
                         );

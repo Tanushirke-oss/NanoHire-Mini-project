@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, isAuthenticated } = useAuth();
+  const { signIn, signInWithGoogle, signUp, isAuthenticated } = useAuth();
   const [mode, setMode] = useState("login");
   const [accountType, setAccountType] = useState("student");
   const [error, setError] = useState("");
@@ -15,6 +15,8 @@ export default function LoginPage() {
     password: "",
     role: "student"
   });
+  const googleButtonRef = useRef(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -49,9 +51,85 @@ export default function LoginPage() {
     }
   }
 
+  useEffect(() => {
+    if (!googleClientId || !googleButtonRef.current) return undefined;
+
+    let cancelled = false;
+
+    const handleGoogleCredential = async (response) => {
+      if (cancelled || !response?.credential) return;
+
+      setError("");
+      setBusy(true);
+      try {
+        await signInWithGoogle({
+          idToken: response.credential,
+          role: accountType,
+          expectedRole: accountType
+        });
+        navigate("/");
+      } catch (err) {
+        setError(err?.response?.data?.message || err?.message || "Google sign in failed");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const renderGoogleButton = () => {
+      if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return;
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredential
+      });
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: mode === "login" ? "continue_with" : "signup_with",
+        shape: "pill",
+        width: 320
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existingScript) {
+      existingScript.addEventListener("load", renderGoogleButton, { once: true });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = renderGoogleButton;
+    document.head.appendChild(script);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountType, googleClientId, mode, navigate, signInWithGoogle]);
+
   return (
     <section className="auth-page">
       <div className="auth-art">
+        <div className="login-brand">
+          <div className="login-logo">NH</div>
+          <div className="login-brand-text">
+            <strong>NanoHire</strong>
+            <span>Talent Meets Opportunity</span>
+          </div>
+        </div>
         <h1>Ship Micro Internships, Not Empty Promises</h1>
         <p>
           Students and hirers both login with email and password, collaborate transparently, and close tasks with tracked payments.
@@ -123,6 +201,15 @@ export default function LoginPage() {
         <button type="submit" disabled={busy}>
           {busy ? "Please wait..." : mode === "login" ? "Login" : "Register"}
         </button>
+
+        {googleClientId ? (
+          <div className="google-auth-wrap">
+            <p className="auth-subtitle">Or continue with Google</p>
+            <div ref={googleButtonRef} className="google-button-slot" />
+          </div>
+        ) : (
+          <p className="search-meta">Google login is available when VITE_GOOGLE_CLIENT_ID is configured.</p>
+        )}
 
         <button
           type="button"

@@ -1,0 +1,24 @@
+🔧 DEVELOPER CONSOLE ACCESS
+============================
+
+To access developer stats and live site analytics:
+
+1. Login with email: tanu.shirke06@gmail.com
+
+2. Developer Console will appear in the bottom-right corner of the screen
+
+3. Features:
+   - 👥 Total Users Online (Hirers + Students)
+   - 📋 Total Open Tasks
+   - ✅ Total Allotted Tasks
+   - 📤 Total Submitted Tasks
+   - 🏆 Total Completed Tasks
+   - 💰 Total Transaction Amount
+   - 📊 Live Task Statistics
+
+4. Open Browser Console (F12 or right-click → Inspect → Console tab) to view:
+   - Timestamp of last update
+   - Detailed task list
+   - All live platform metrics
+
+The stats auto-refresh every 5 seconds!

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function statusMeta(status) {
   if (status === "open") return { label: "Open", stage: "Open for applications" };
@@ -13,9 +14,15 @@ export default function GigCard({
   gig,
   hirerName = "Unknown Hirer",
   hirerRole = "hirer",
-  selectedForCurrentStudent = false
+  selectedForCurrentStudent = false,
+  onDeleteTask = null
 }) {
+  const { currentUser } = useAuth();
   const meta = statusMeta(gig.status);
+  const canDelete = typeof onDeleteTask === "function" && currentUser?.id === gig.hirerId;
+  const feeLabel = Number.isFinite(gig.feeMin) && Number.isFinite(gig.feeMax)
+    ? `Rs. ${gig.feeMin} - Rs. ${gig.feeMax}`
+    : `Rs. ${gig.fee}`;
 
   return (
     <article className="gig-card">
@@ -27,7 +34,7 @@ export default function GigCard({
           className="publisher-avatar"
         />
         <div className="publisher-info">
-          <div className="publisher-name">{hirerName}</div>
+          <Link to={`/profile/${gig.hirerId}`} className="publisher-name">{hirerName}</Link>
           <div className="publisher-role">{hirerRole === "hirer" ? "🏢 Hirer" : "👤 Student"}</div>
         </div>
       </div>
@@ -45,12 +52,21 @@ export default function GigCard({
         ))}
       </div>
       <div className="gig-meta">
-        <strong>💰 Fee: Rs. {gig.fee}</strong>
+        <strong>💰 Budget: {feeLabel}</strong>
         <span>📅 Deadline: {new Date(gig.deadline).toLocaleString()}</span>
       </div>
       <Link to={`/marketplace/${gig.id}`} className="btn-link">
         View Internship
       </Link>
+      {canDelete ? (
+        <button
+          type="button"
+          className="danger-btn task-delete-btn"
+          onClick={() => onDeleteTask(gig.id)}
+        >
+          Delete Task
+        </button>
+      ) : null}
     </article>
   );
 }

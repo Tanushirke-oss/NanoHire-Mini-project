@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getGigs, getUser } from "../api";
+import { deleteGig, getGigs, getUser } from "../api";
 import GigCard from "../components/GigCard";
+import TaskTimer from "../components/TaskTimer";
+import MotivationalMessage from "../components/MotivationalMessage";
 import { useAuth } from "../context/AuthContext";
 
 const SEARCH_TEXT_KEY = "nanohire_tasks_search_text";
@@ -64,6 +66,18 @@ export default function TasksPage() {
     loadGigs();
   }, []);
 
+  async function handleDeleteTask(gigId) {
+    const confirmed = window.confirm("Delete this task permanently?");
+    if (!confirmed) return;
+
+    try {
+      await deleteGig(gigId);
+      await loadGigs();
+    } catch (error) {
+      console.error("Delete task failed:", error);
+    }
+  }
+
   useEffect(() => {
     localStorage.setItem(SEARCH_TEXT_KEY, searchText);
   }, [searchText]);
@@ -113,6 +127,15 @@ export default function TasksPage() {
     return gigs.filter(
       (gig) => gig.selectedStudentId === currentUser.id && ["in_progress", "submitted"].includes(gig.status)
     );
+  }, [gigs, currentUser?.id, currentUser?.role]);
+
+  const appliedButNotSelected = useMemo(() => {
+    if (currentUser?.role !== "student") return [];
+
+    return gigs.filter((gig) => {
+      const hasApplied = (gig.applications || []).some((a) => a.studentId === currentUser.id);
+      return hasApplied && !!gig.selectedStudentId && gig.selectedStudentId !== currentUser.id;
+    });
   }, [gigs, currentUser?.id, currentUser?.role]);
 
   return (
@@ -185,25 +208,53 @@ export default function TasksPage() {
 
       {currentUser?.role === "student" ? (
         <div className="panel">
-          <h2>Tasks You Got Selected For</h2>
+          <h2>⭐ Tasks You Got Selected For</h2>
           {selectedForStudent.length === 0 ? (
-            <p className="search-meta">You are not selected for any task yet.</p>
+            <p className="search-meta">You are not selected for any task yet. Keep applying!</p>
           ) : (
-            <div className="gig-list animated-list">
-              {selectedForStudent.map((gig) => {
-                const hirerInfo = usersMap[gig.hirerId] || {};
-                return (
-                  <GigCard
-                    key={gig.id}
-                    gig={gig}
-                    hirerName={hirerInfo.name || "Unknown"}
-                    hirerRole={hirerInfo.role || "hirer"}
-                    selectedForCurrentStudent
-                  />
-                );
-              })}
-            </div>
+            <>
+              <MotivationalMessage isSelected={true} />
+              <div className="gig-list animated-list">
+                {selectedForStudent.map((gig) => {
+                  const hirerInfo = usersMap[gig.hirerId] || {};
+                  return (
+                    <div key={gig.id} className="gig-card-with-timer">
+                      <TaskTimer deadline={gig.deadline} />
+                      <GigCard
+                        gig={gig}
+                        hirerName={hirerInfo.name || "Unknown"}
+                        hirerRole={hirerInfo.role || "hirer"}
+                        selectedForCurrentStudent
+                        onDeleteTask={handleDeleteTask}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
+        </div>
+      ) : null}
+
+      {currentUser?.role === "student" && appliedButNotSelected.length > 0 ? (
+        <div className="panel">
+          <h2>🌱 Keep Going: Applied But Not Selected Yet</h2>
+          <MotivationalMessage isSelected={false} />
+          <div className="gig-list animated-list">
+            {appliedButNotSelected.map((gig) => {
+              const hirerInfo = usersMap[gig.hirerId] || {};
+              return (
+                <GigCard
+                  key={gig.id}
+                  gig={gig}
+                  hirerName={hirerInfo.name || "Unknown"}
+                  hirerRole={hirerInfo.role || "hirer"}
+                  selectedForCurrentStudent={false}
+                  onDeleteTask={handleDeleteTask}
+                />
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
@@ -223,6 +274,7 @@ export default function TasksPage() {
                     hirerName={hirerInfo.name || "Unknown"}
                     hirerRole={hirerInfo.role || "hirer"}
                     selectedForCurrentStudent={gig.selectedStudentId === currentUser?.id}
+                    onDeleteTask={handleDeleteTask}
                   />
                 );
               })}

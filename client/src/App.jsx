@@ -1,8 +1,10 @@
 import { Route, Routes } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import DeveloperConsole from "./components/DeveloperConsole";
 import { useAuth } from "./context/AuthContext";
 import GigDetailPage from "./pages/GigDetailPage";
+import HistoryPage from "./pages/HistoryPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import MarketplacePage from "./pages/MarketplacePage";
@@ -16,6 +18,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${roleClass}`}>
+      <DeveloperConsole />
       <Navbar />
       <main>
         <Routes>
@@ -33,6 +36,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <TasksPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
               </ProtectedRoute>
             }
           />

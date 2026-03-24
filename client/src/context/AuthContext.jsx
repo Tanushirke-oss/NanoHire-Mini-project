@@ -1,10 +1,35 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { getMe, getUsers, login, register } from "../api";
+import { deleteUserAccount, getMe, getUsers, login, loginWithGoogle, register } from "../api";
 
 const AuthContext = createContext(null);
 const TOKEN_KEY = "nanohire_token";
 const USER_KEY = "nanohire_current_user";
 const USERS_KEY = "nanohire_users_cache";
+const RESET_MARKER_KEY = "nanohire_reset_marker";
+const RESET_MARKER_VALUE = "fresh_start_dark_reset_2026_03_22";
+
+function applyFreshStartReset() {
+  try {
+    if (typeof window === "undefined") return;
+    const marker = localStorage.getItem(RESET_MARKER_KEY);
+    if (marker === RESET_MARKER_VALUE) return;
+
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("nanohire_")) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem(RESET_MARKER_KEY, RESET_MARKER_VALUE);
+  } catch (_error) {
+    // Ignore storage access errors and continue app bootstrap.
+  }
+}
+
+applyFreshStartReset();
 
 function readJSON(key, fallback) {
   try {
@@ -78,6 +103,23 @@ export function AuthProvider({ children }) {
     return response.user;
   }
 
+  async function signInWithGoogle(payload) {
+    const { expectedRole, ...requestPayload } = payload || {};
+    const response = await loginWithGoogle(requestPayload);
+
+    if (expectedRole && response.user?.role !== expectedRole) {
+      throw new Error(
+        `This Google account is registered as ${response.user?.role}. Switch to ${response.user?.role} login.`
+      );
+    }
+
+    localStorage.setItem(TOKEN_KEY, response.token);
+    setToken(response.token);
+    setCurrentUser(response.user);
+    await refreshUsers();
+    return response.user;
+  }
+
   function signOut() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -85,6 +127,13 @@ export function AuthProvider({ children }) {
     setToken("");
     setCurrentUser(null);
     setUsers([]);
+  }
+
+  async function deleteAccount() {
+    if (!currentUser?.id) return;
+
+    await deleteUserAccount(currentUser.id);
+    signOut();
   }
 
   useEffect(() => {
@@ -110,8 +159,10 @@ export function AuthProvider({ children }) {
         isAuthenticated,
         authLoading,
         signIn,
+        signInWithGoogle,
         signUp,
         signOut,
+        deleteAccount,
         refreshUsers,
         setUsers
       }}

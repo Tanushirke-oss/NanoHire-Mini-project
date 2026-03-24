@@ -1,10 +1,13 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
 import { authenticate } from "../middleware/auth.js";
+import { ensureFakeWalletAssigned, getStudentInitialBalance, serializeWallet } from "../utils/fakeWallet.js";
 
 const router = express.Router();
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || undefined);
 
 function serializeUser(user) {
   return {
@@ -13,10 +16,11 @@ function serializeUser(user) {
     email: user.email,
     role: user.role,
     bio: user.bio,
-    walletAddress: user.walletAddress,
+    ...serializeWallet(user),
     resumeUrl: user.resumeUrl,
     portfolioUrl: user.portfolioUrl,
-    projects: user.projects || []
+    projects: user.projects || [],
+    skills: user.skills || []
   };
 }
 
@@ -28,8 +32,26 @@ function signToken(user) {
   );
 }
 
+async function ensureUniqueName(baseName) {
+  const initial = String(baseName || "User").trim() || "User";
+  let candidate = initial;
+  let counter = 1;
+
+  // Keep app names unique while preserving original human-readable base when possible.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop
+    const exists = await User.findOne({
+      name: { $regex: `^${candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" }
+    });
+    if (!exists) return candidate;
+    counter += 1;
+    candidate = `${initial}${counter}`;
+  }
+}
+
 router.post("/register", async (req, res) => {
-  const { name, email, password, role, walletAddress } = req.body;
+  const { name, email, password, role } = req.body;
   const normalizedName = String(name || "").trim();
 
   if (!normalizedName || !email || !password) {
@@ -55,10 +77,16 @@ router.post("/register", async (req, res) => {
     email: email.toLowerCase(),
     passwordHash,
     role: role || "student",
-    walletAddress: walletAddress || "",
+    walletAddress: "",
+    fakeWalletId: "",
+    walletBalance: role === "hirer" ? 2000 : getStudentInitialBalance(),
+    walletTransactions: [],
     bio: "",
-    projects: []
+    projects: [],
+    skills: []
   });
+
+  await ensureFakeWalletAssigned(user);
 
   const token = signToken(user);
   return res.status(201).json({ token, user: serializeUser(user) });
@@ -76,6 +104,8 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
+  await ensureFakeWalletAssigned(user);
+
   const ok = await bcrypt.compare(password, user.passwordHash || "");
   if (!ok) {
     return res.status(401).json({ message: "Invalid credentials" });
@@ -85,11 +115,76 @@ router.post("/login", async (req, res) => {
   return res.json({ token, user: serializeUser(user) });
 });
 
+router.post("/google", async (req, res) => {
+  const { idToken, role } = req.body || {};
+
+  if (!idToken) {
+    return res.status(400).json({ message: "idToken is required" });
+  }
+
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return res.status(503).json({ message: "Google login is not configured on server." });
+  }
+
+  const ticket = await googleClient.verifyIdToken({
+    idToken,
+    audience: process.env.GOOGLE_CLIENT_ID
+  });
+
+  const payload = ticket.getPayload();
+  const email = String(payload?.email || "").toLowerCase().trim();
+  const googleId = String(payload?.sub || "");
+  const displayName = String(payload?.name || "").trim() || "Google User";
+
+  if (!email || !googleId) {
+    return res.status(400).json({ message: "Google account information is incomplete." });
+  }
+
+  if (payload?.email_verified === false) {
+    return res.status(401).json({ message: "Google email is not verified." });
+  }
+
+  let user = await User.findOne({ email });
+
+  if (!user) {
+    const userRole = role === "hirer" ? "hirer" : "student";
+    const uniqueName = await ensureUniqueName(displayName);
+    const randomPassword = `${googleId}-${Date.now()}`;
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+    user = await User.create({
+      name: uniqueName,
+      email,
+      passwordHash,
+      googleId,
+      authProvider: "google",
+      role: userRole,
+      walletAddress: "",
+      fakeWalletId: "",
+      walletBalance: userRole === "hirer" ? 2000 : getStudentInitialBalance(),
+      walletTransactions: [],
+      bio: "",
+      projects: [],
+      skills: []
+    });
+  } else {
+    user.googleId = user.googleId || googleId;
+    user.authProvider = user.authProvider || "google";
+    await user.save();
+  }
+
+  await ensureFakeWalletAssigned(user);
+  const token = signToken(user);
+  return res.json({ token, user: serializeUser(user) });
+});
+
 router.get("/me", authenticate, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
+
+  await ensureFakeWalletAssigned(user);
 
   return res.json({ user: serializeUser(user) });
 });

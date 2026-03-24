@@ -56,9 +56,13 @@ VITE_API_URL=http://localhost:4000
 VITE_ESCROW_CONTRACT_ADDRESS=0xYourDeployedEscrowAddress
 ```
 
-## 3) Deploy Smart Contract (Required For On-Chain Buttons)
+## 3) Smart Contract Buttons (Now Simulated In-App)
 
-Open terminal in project root:
+NanoHire now uses an in-app wallet and simulated on-chain transaction IDs. MetaMask is not required.
+
+If you still want to connect a real contract for experimentation, keep `VITE_ESCROW_CONTRACT_ADDRESS` in `client/.env`.
+
+Optional Hardhat local workflow:
 
 ```bash
 cd contracts
@@ -72,13 +76,7 @@ Open another terminal in `contracts` and deploy:
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-Copy deployed contract address into `client/.env` as `VITE_ESCROW_CONTRACT_ADDRESS`.
-
-In MetaMask, connect to local Hardhat network:
-
-- Network URL: `http://127.0.0.1:8545`
-- Chain ID: `31337`
-- Import a Hardhat test private key from node output.
+Copy deployed contract address into `client/.env` as `VITE_ESCROW_CONTRACT_ADDRESS` if needed.
 
 ## 4) Run Backend + Frontend
 
@@ -129,3 +127,42 @@ npm run compile --workspace contracts
 - If `MONGO_URI` is not provided, server uses in-memory MongoDB automatically.
 - For production uploads, replace local disk uploads with S3/Cloudinary.
 - Escrow contract expects fee in ETH value when creating on-chain gig.
+
+## Vercel Deployment
+
+Deploy frontend and backend as separate Vercel projects.
+
+### A) Deploy Backend (`server`)
+
+1. In Vercel, create a new project and select the `server` folder as root.
+2. Vercel uses `server/vercel.json` and serves `server/api/index.js`.
+3. Add environment variables:
+
+```env
+MONGO_URI=<your-production-mongodb-uri>
+JWT_SECRET=<your-production-jwt-secret>
+```
+
+4. Deploy and note backend URL, for example:
+
+`https://nanohire-server.vercel.app`
+
+### B) Deploy Frontend (`client`)
+
+1. Create another Vercel project with `client` folder as root.
+2. Vercel uses `client/vercel.json` for SPA routing.
+3. Add environment variable:
+
+```env
+VITE_API_URL=https://nanohire-server.vercel.app
+```
+
+4. Deploy frontend.
+
+### C) Post-Deploy Check
+
+1. Open frontend URL and register/login.
+2. Verify task posting, profile links, and messages work.
+3. Verify backend health:
+
+`https://nanohire-server.vercel.app/health`

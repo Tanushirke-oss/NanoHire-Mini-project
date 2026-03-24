@@ -11,10 +11,13 @@ router.get("/", async (_req, res) => {
 });
 
 router.post("/", upload.single("media"), async (req, res) => {
-  const { content } = req.body;
+  const { content, title, body } = req.body;
+  const normalizedTitle = String(title || "").trim();
   const normalizedContent = String(content || "").trim();
-  if (!normalizedContent) {
-    return res.status(400).json({ message: "content is required" });
+  const normalizedBody = String(body || "").trim();
+
+  if (!normalizedTitle) {
+    return res.status(400).json({ message: "title is required" });
   }
 
   const host = `${req.protocol}://${req.get("host")}`;
@@ -29,6 +32,8 @@ router.post("/", upload.single("media"), async (req, res) => {
 
   const post = await Post.create({
     authorId: req.user.id,
+    title: normalizedTitle,
+    body: normalizedBody,
     content: normalizedContent,
     mediaUrl,
     mediaType,
@@ -89,6 +94,20 @@ router.post("/:id/share", async (req, res) => {
   post.sharesCount = Number(post.sharesCount || 0) + 1;
   await post.save();
   return res.json(post.toJSON());
+});
+
+router.delete("/:id", async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  if (!post) {
+    return res.status(404).json({ message: "Post not found" });
+  }
+
+  if (post.authorId !== req.user.id) {
+    return res.status(403).json({ message: "You can only delete your own posts" });
+  }
+
+  await Post.deleteOne({ _id: post._id });
+  return res.json({ message: "Post deleted successfully" });
 });
 
 export default router;

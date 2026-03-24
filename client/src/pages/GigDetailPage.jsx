@@ -29,6 +29,7 @@ export default function GigDetailPage() {
   const [gig, setGig] = useState(null);
   const [applyNote, setApplyNote] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
+  const [workSampleFile, setWorkSampleFile] = useState(null);
   const [updateText, setUpdateText] = useState("");
   const [feedbackText, setFeedbackText] = useState("");
   const [deliverableUrl, setDeliverableUrl] = useState("");
@@ -83,34 +84,34 @@ export default function GigDetailPage() {
 
   if (!gig) return <section className="page">Loading internship...</section>;
 
+  const feeLabel = Number.isFinite(gig.feeMin) && Number.isFinite(gig.feeMax)
+    ? `Rs. ${gig.feeMin} - Rs. ${gig.feeMax}`
+    : `Rs. ${gig.fee}`;
+
   async function handleApply() {
     if (!currentUser) return;
     await applyGig(gig.id, {
       note: applyNote,
       resumeUrl: currentUser.resumeUrl || "",
-      resumeFile
+      resumeFile,
+      workSampleFile
     });
     setApplyNote("");
     setResumeFile(null);
+    setWorkSampleFile(null);
     await loadGig();
   }
 
   async function handleSelect(studentId) {
     try {
       let onchainTxHash = "";
-      const studentWalletAddress = users.find((u) => u.id === studentId)?.walletAddress;
 
       if (gig.payment?.onchainGigId) {
-        if (!studentWalletAddress) {
-          setChainMessage("Selected student wallet address is missing.");
-          return;
-        }
-
         setChainBusy(true);
         setChainMessage("Sending select-student transaction...");
         const tx = await selectStudentOnchain({
           onchainGigId: gig.payment.onchainGigId,
-          studentWalletAddress
+          studentWalletAddress: ""
         });
         onchainTxHash = tx.txHash;
         setChainMessage(`Select transaction mined: ${tx.txHash}`);
@@ -276,7 +277,7 @@ export default function GigDetailPage() {
                 alt={hirerInfo.name}
               />
               <div>
-                <div className="hirer-name">{hirerInfo.name}</div>
+                <Link to={`/profile/${gig.hirerId}`} className="hirer-name">{hirerInfo.name}</Link>
                 <div className="hirer-role">🏢 Hirer</div>
               </div>
             </div>
@@ -284,7 +285,7 @@ export default function GigDetailPage() {
         </div>
         <p>{gig.description}</p>
         <div className="gig-meta">
-          <strong>💰 Fee: Rs. {gig.fee}</strong>
+          <strong>💰 Budget: {feeLabel}</strong>
           <span>📅 Deadline: {new Date(gig.deadline).toLocaleString()}</span>
           <span>📊 Status: {gig.status}</span>
           {gig.payment?.onchainGigId ? <span>⛓️ On-chain ID: {gig.payment.onchainGigId}</span> : null}
@@ -324,6 +325,11 @@ export default function GigDetailPage() {
                     {application.resumeUrl ? (
                       <a href={application.resumeUrl} target="_blank" rel="noreferrer" className="resume-link">
                         📎 Resume from application
+                      </a>
+                    ) : null}
+                    {application.workSampleUrl ? (
+                      <a href={application.workSampleUrl} target="_blank" rel="noreferrer" className="resume-link">
+                        🧩 Work sample attachment
                       </a>
                     ) : null}
                   </div>
@@ -371,6 +377,16 @@ export default function GigDetailPage() {
                 />
                 {resumeFile && <span className="file-name">{resumeFile.name}</span>}
               </div>
+              <div className="file-input-group">
+                <label htmlFor="work-sample-upload">🧩 Attach Work Sample (Optional)</label>
+                <input
+                  id="work-sample-upload"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.png,.jpg,.jpeg,.webp"
+                  onChange={(e) => setWorkSampleFile(e.target.files?.[0] || null)}
+                />
+                {workSampleFile ? <span className="file-name">{workSampleFile.name}</span> : null}
+              </div>
               <button onClick={handleApply} className="primary-btn">✨ Apply For Internship</button>
             </div>
           ) : hasApplied && !isSelectedStudent ? (
@@ -394,7 +410,7 @@ export default function GigDetailPage() {
                       src={"https://ui-avatars.com/api/?name=" + student.name + "&background=random"} 
                       alt={student.name}
                     />
-                    <strong>{student.name}</strong>
+                    <Link to={`/profile/${student.id}`} className="student-name-link">{student.name}</Link>
                   </div>
                 )}
                 <p>{u.message}</p>
@@ -453,7 +469,7 @@ export default function GigDetailPage() {
                     src={"https://ui-avatars.com/api/?name=" + student.name + "&background=random"} 
                     alt={student.name}
                   />
-                  <strong>{student.name}</strong>
+                  <Link to={`/profile/${student.id}`} className="student-name-link">{student.name}</Link>
                 </div>
               )}
               <p>

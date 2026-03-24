@@ -3,7 +3,9 @@ import mongoose from "mongoose";
 const postSchema = new mongoose.Schema(
   {
     authorId: { type: String, required: true },
-    content: { type: String, required: true },
+    title: { type: String, default: "" },
+    body: { type: String, default: "" },
+    content: { type: String, default: "" },
     mediaUrl: { type: String, default: "" },
     mediaType: { type: String, enum: ["image", "video", "none"], default: "none" },
     likes: [{ type: String }],

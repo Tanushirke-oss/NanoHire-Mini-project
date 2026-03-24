@@ -1,74 +1,70 @@
-import { BrowserProvider, Contract, parseEther } from "ethers";
-import { ESCROW_ABI } from "./escrowAbi";
+const ONCHAIN_COUNTER_KEY = "nanohire_fake_onchain_gig_counter";
 
 function getContractAddress() {
-  const address = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
-  if (!address) {
-    throw new Error("VITE_ESCROW_CONTRACT_ADDRESS is not configured.");
-  }
-  return address;
+  return import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "FAKE-SMART-CONTRACT";
 }
 
-async function getSignerContract() {
-  if (!window.ethereum) {
-    throw new Error("MetaMask is not available.");
-  }
+function nextFakeOnchainGigId() {
+  const raw = localStorage.getItem(ONCHAIN_COUNTER_KEY);
+  const current = Number(raw || 0);
+  const next = Number.isFinite(current) ? current + 1 : 1;
+  localStorage.setItem(ONCHAIN_COUNTER_KEY, String(next));
+  return String(next);
+}
 
-  const provider = new BrowserProvider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  const signer = await provider.getSigner();
-  const contract = new Contract(getContractAddress(), ESCROW_ABI, signer);
-  return { contract, signer };
+function fakeTxHash() {
+  const a = Math.random().toString(16).slice(2);
+  const b = Date.now().toString(16);
+  return `0x${a}${b}`.slice(0, 66);
+}
+
+async function simulateTransaction() {
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  return { txHash: fakeTxHash() };
 }
 
 export async function createOnchainGigTransaction({ fee, deadline }) {
-  const { contract } = await getSignerContract();
+  if (!fee || Number(fee) <= 0) {
+    throw new Error("Fee must be greater than 0.");
+  }
 
-  const nextGigId = await contract.nextGigId();
-  const deadlineUnix = Math.floor(new Date(deadline).getTime() / 1000);
-  const tx = await contract.createGig(deadlineUnix, {
-    value: parseEther(String(fee))
-  });
-  const receipt = await tx.wait();
+  if (!deadline || Number.isNaN(new Date(deadline).getTime())) {
+    throw new Error("Valid deadline is required.");
+  }
+
+  const tx = await simulateTransaction();
 
   return {
-    onchainGigId: nextGigId.toString(),
-    txHash: receipt.hash,
+    onchainGigId: nextFakeOnchainGigId(),
+    txHash: tx.txHash,
     escrowContractAddress: getContractAddress()
   };
 }
 
 export async function selectStudentOnchain({ onchainGigId, studentWalletAddress }) {
-  const { contract } = await getSignerContract();
-  const tx = await contract.selectStudent(onchainGigId, studentWalletAddress);
-  const receipt = await tx.wait();
-  return { txHash: receipt.hash };
+  if (!onchainGigId) throw new Error("Missing on-chain gig id.");
+  return simulateTransaction();
 }
 
 export async function submitWorkOnchain({ onchainGigId }) {
-  const { contract } = await getSignerContract();
-  const tx = await contract.submitWork(onchainGigId);
-  const receipt = await tx.wait();
-  return { txHash: receipt.hash };
+  if (!onchainGigId) throw new Error("Missing on-chain gig id.");
+  return simulateTransaction();
 }
 
 export async function acceptAndReleaseOnchain({ onchainGigId }) {
-  const { contract } = await getSignerContract();
-  const tx = await contract.acceptAndRelease(onchainGigId);
-  const receipt = await tx.wait();
-  return { txHash: receipt.hash };
+  if (!onchainGigId) throw new Error("Missing on-chain gig id.");
+  return simulateTransaction();
 }
 
 export async function raiseDisputeOnchain({ onchainGigId }) {
-  const { contract } = await getSignerContract();
-  const tx = await contract.raiseDispute(onchainGigId);
-  const receipt = await tx.wait();
-  return { txHash: receipt.hash };
+  if (!onchainGigId) throw new Error("Missing on-chain gig id.");
+  return simulateTransaction();
 }
 
 export async function resolveDisputeOnchain({ onchainGigId, releaseToStudent }) {
-  const { contract } = await getSignerContract();
-  const tx = await contract.resolveDispute(onchainGigId, releaseToStudent);
-  const receipt = await tx.wait();
-  return { txHash: receipt.hash };
+  if (!onchainGigId) throw new Error("Missing on-chain gig id.");
+  if (typeof releaseToStudent !== "boolean") {
+    throw new Error("releaseToStudent must be true or false.");
+  }
+  return simulateTransaction();
 }

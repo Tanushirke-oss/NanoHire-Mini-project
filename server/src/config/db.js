@@ -8,6 +8,7 @@ let memoryServer;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fallbackDbPath = path.resolve(__dirname, "../../.data/mongodb");
+const fallbackRootPath = path.resolve(__dirname, "../../.data");
 
 function ensureFallbackDbDir() {
   if (!fs.existsSync(fallbackDbPath)) {
@@ -15,8 +16,24 @@ function ensureFallbackDbDir() {
   }
 }
 
+function ensureFallbackRootDir() {
+  if (!fs.existsSync(fallbackRootPath)) {
+    fs.mkdirSync(fallbackRootPath, { recursive: true });
+  }
+}
+
+function buildUniqueFallbackDbPath() {
+  return path.resolve(fallbackRootPath, `mongodb-${process.pid}-${Date.now()}`);
+}
+
+function isDbPathLockError(error) {
+  const message = String(error?.message || "");
+  return message.includes("DBPathInUse") || message.includes("mongod.lock");
+}
+
 export async function connectDB() {
   let mongoUri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/nanohire";
+  let selectedFallbackPath = fallbackDbPath;
 
   try {
     await mongoose.connect(mongoUri);
@@ -28,15 +45,38 @@ export async function connectDB() {
     }
 
     ensureFallbackDbDir();
-    memoryServer = await MongoMemoryServer.create({
-      instance: {
-        dbPath: fallbackDbPath,
-        storageEngine: "wiredTiger"
+
+    try {
+      memoryServer = await MongoMemoryServer.create({
+        instance: {
+          dbPath: fallbackDbPath,
+          storageEngine: "wiredTiger"
+        }
+      });
+    } catch (fallbackError) {
+      if (!isDbPathLockError(fallbackError)) {
+        throw fallbackError;
       }
-    });
+
+      ensureFallbackRootDir();
+      const uniqueFallbackDbPath = buildUniqueFallbackDbPath();
+      fs.mkdirSync(uniqueFallbackDbPath, { recursive: true });
+      selectedFallbackPath = uniqueFallbackDbPath;
+      console.warn(
+        `Default fallback DB path is locked. Using isolated fallback storage at ${uniqueFallbackDbPath}.`
+      );
+
+      memoryServer = await MongoMemoryServer.create({
+        instance: {
+          dbPath: uniqueFallbackDbPath,
+          storageEngine: "wiredTiger"
+        }
+      });
+    }
+
     mongoUri = memoryServer.getUri();
     await mongoose.connect(mongoUri);
-    console.log(`Using local fallback MongoDB storage at ${fallbackDbPath}.`);
+    console.log(`Using local fallback MongoDB storage at ${selectedFallbackPath}.`);
     return;
   }
 }
