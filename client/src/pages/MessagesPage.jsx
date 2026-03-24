@@ -17,6 +17,7 @@ export default function MessagesPage() {
   const [usersMap, setUsersMap] = useState({});
   const [gigsMap, setGigsMap] = useState({});
   const [startableUsers, setStartableUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
 
   async function loadAllMessages() {
     try {
@@ -217,6 +218,14 @@ export default function MessagesPage() {
     await openConversation(item);
   }
 
+  const filteredStartableUsers = startableUsers.filter((user) => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return true;
+
+    const haystack = [user.name, user.email, user.role].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+
   async function handleSendMessage() {
     if (!newMessage.trim() || !selectedConversation) return;
 
@@ -250,15 +259,22 @@ export default function MessagesPage() {
           <h2>💬 Conversations</h2>
           <div className="start-chat-panel">
             <h3>Start New Chat</h3>
+            <input
+              type="text"
+              className="start-chat-search"
+              placeholder="Search students or hirers"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+            />
             <div className="start-chat-list">
-              {startableUsers.slice(0, 8).map((user) => (
+              {filteredStartableUsers.slice(0, 40).map((user) => (
                 <button
                   type="button"
                   key={user.id}
                   className="start-chat-btn"
                   onClick={() => startDirectConversation(user)}
                 >
-                  {user.name}
+                  {user.name} ({user.role})
                 </button>
               ))}
             </div>

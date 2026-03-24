@@ -59,11 +59,17 @@ export async function ensureFakeWalletAssigned(user) {
 }
 
 export function serializeWallet(user) {
+  const walletTransactions = Array.isArray(user.walletTransactions)
+    ? user.walletTransactions.filter(
+        (entry) => entry?.type !== "developer-adjustment" && Boolean(String(entry?.gigId || "").trim())
+      )
+    : [];
+
   return {
     walletAddress: user.walletAddress,
     walletBalance: typeof user.walletBalance === "number" ? user.walletBalance : 0,
     fakeWalletId: user.fakeWalletId || "",
-    walletTransactions: Array.isArray(user.walletTransactions) ? user.walletTransactions : []
+    walletTransactions
   };
 }
 

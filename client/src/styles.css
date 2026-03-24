@@ -351,6 +351,53 @@ label,
   margin-top: 0.78rem;
 }
 
+.activity-panel {
+  background: linear-gradient(
+      130deg,
+      rgba(212, 175, 55, 0.16) 0%,
+      rgba(64, 224, 208, 0.12) 48%,
+      rgba(168, 200, 255, 0.2) 100%
+    ),
+    var(--surface);
+}
+
+.activity-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.activity-item-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.activity-item {
+  border: 1px solid rgba(107, 159, 255, 0.34);
+  background: rgba(255, 255, 255, 0.64);
+  border-radius: 12px;
+  padding: 0.65rem 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.activity-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(62, 111, 217, 0.58);
+  box-shadow: 0 10px 18px rgba(30, 58, 95, 0.11);
+}
+
+.activity-item p {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.activity-item span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .hero {
   background:
     radial-gradient(circle at 84% 20%, rgba(107, 159, 255, 0.14), transparent 36%),
@@ -478,9 +525,29 @@ button:active {
   text-align: left;
 }
 
+.start-chat-search {
+  border-radius: 10px;
+}
+
+.home-selected-task-list {
+  display: grid;
+  gap: 0.75rem;
+}
+.home-selected-task-link {
+  text-decoration: none;
+  color: inherit;
+}
+.home-selected-task-link .home-selected-task-clock {
+  margin-top: 0;
+}
 .row {
   display: grid;
   grid-template-columns: 1fr 220px;
+  gap: 0.6rem;
+}
+
+.apply-status-stack {
+  display: grid;
   gap: 0.6rem;
 }
 
@@ -564,9 +631,21 @@ button:active {
 .status {
   border: 1px solid currentColor;
   border-radius: 999px;
-  padding: 0.16rem 0.55rem;
-  font-size: 0.75rem;
-  font-weight: 700;
+  padding: 0.32rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.payment-release-pill {
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(92, 184, 92, 0.7);
+  background: rgba(92, 184, 92, 0.2);
+  color: #1c4f1c;
+  padding: 0.28rem 0.78rem;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .selected-task-pill {
@@ -1398,11 +1477,15 @@ button:active {
 
   .menu {
     width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.2rem;
   }
 
   .topbar-right {
     width: 100%;
     margin-left: 0;
+    justify-content: flex-start;
   }
 
   .feed-container {
@@ -1420,6 +1503,31 @@ button:active {
   .gig-detail .split-grid,
   .auth-page {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .identity-pill {
+    order: 1;
+    width: auto;
+  }
+
+  .wallet-connect {
+    order: 2;
+    width: auto;
+  }
+
+  .topbar-right .secondary-btn {
+    order: 3;
+    width: auto;
+  }
+
+  .auth-badges {
+    gap: 0.35rem;
+  }
+
+  .auth-badges span {
+    font-size: 0.76rem;
   }
 }
 
@@ -1449,6 +1557,13 @@ button:active {
 
   .chat-area {
     min-height: 55vh;
+  }
+
+  .post-composer,
+  .feed-post,
+  .gig-card,
+  .panel {
+    overflow-wrap: anywhere;
   }
 
   .message-content {

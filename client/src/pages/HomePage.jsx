@@ -4,6 +4,7 @@ import {
   createPost,
   deletePost,
   getGigs,
+  getMessages,
   getPosts,
   getUser,
   sharePost,
@@ -13,9 +14,10 @@ import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import TaskTimer from "../components/TaskTimer";
 import MotivationalMessage from "../components/MotivationalMessage";
+import { buildActivityNotifications } from "../utils/activityNotifications";
 
 export default function HomePage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshSessionUser } = useAuth();
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState("");
   const [postTitle, setPostTitle] = useState("");
@@ -26,6 +28,8 @@ export default function HomePage() {
   const [posting, setPosting] = useState(false);
   const [actionError, setActionError] = useState("");
   const [selectedTasks, setSelectedTasks] = useState([]);
+  const [activityGigs, setActivityGigs] = useState([]);
+  const [inboxMessages, setInboxMessages] = useState([]);
 
   async function loadPosts() {
     const data = await getPosts();
@@ -127,7 +131,30 @@ export default function HomePage() {
     loadSelectedTasks();
   }, [currentUser?.id, currentUser?.role]);
 
-  const nearestSelectedTask = selectedTasks[0] || null;
+  useEffect(() => {
+    async function loadActivitySignals() {
+      if (!currentUser?.id) {
+        setActivityGigs([]);
+        setInboxMessages([]);
+        return;
+      }
+
+      const [gigs, messages] = await Promise.all([getGigs(), getMessages()]);
+      setActivityGigs(gigs);
+      setInboxMessages(messages);
+      await refreshSessionUser();
+    }
+
+    loadActivitySignals();
+  }, [currentUser?.id, refreshSessionUser]);
+
+  const notifications = useMemo(() => {
+    return buildActivityNotifications({
+      currentUser,
+      gigs: activityGigs,
+      messages: inboxMessages
+    });
+  }, [activityGigs, currentUser, inboxMessages]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -198,6 +225,22 @@ export default function HomePage() {
     <section className="page page-home">
       <div className="feed-container">
         <div className="feed-sidebar hero">
+          {notifications.length > 0 ? (
+            <div className="panel activity-panel">
+              <h3>Notifications</h3>
+              <div className="activity-list">
+                {notifications.map((item) => (
+                  <Link key={item.id} to={item.link} className="activity-item-link">
+                    <div className="activity-item">
+                      <p>{item.text}</p>
+                      <span>{new Date(item.createdAt).toLocaleString()}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {currentUser?.role === "hirer" ? (
             <>
               <h1>Hirer Command Center</h1>
@@ -211,14 +254,25 @@ export default function HomePage() {
               <p>
                 Apply for internships, share updates, and optionally post your own task as a hirer when you need help.
               </p>
-              {nearestSelectedTask ? (
-                <div className="home-selected-task-clock">
-                  <h3>Small Clock For Your Current Task</h3>
-                  <TaskTimer deadline={nearestSelectedTask.deadline} />
-                  <p>
-                    Active task: <strong>{nearestSelectedTask.title}</strong>
-                  </p>
-                  <MotivationalMessage isSelected={true} />
+              {selectedTasks.length > 0 ? (
+                <div className="home-selected-task-list">
+                  <h3>Your Active Task Timers</h3>
+                  {selectedTasks.map((task) => (
+                    <Link
+                      to={`/marketplace/${task.id}`}
+                      key={task.id}
+                      className="home-selected-task-link"
+                    >
+                      <div className="home-selected-task-clock">
+                        <TaskTimer deadline={task.deadline} />
+                        <p>
+                          Active task: <strong>{task.title}</strong>
+                        </p>
+                        <MotivationalMessage isSelected={true} />
+                        <p className="search-meta">Open task details</p>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
               ) : null}
             </>

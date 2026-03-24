@@ -8,7 +8,6 @@ let memoryServer;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fallbackDbPath = path.resolve(__dirname, "../../.data/mongodb");
-const fallbackRootPath = path.resolve(__dirname, "../../.data");
 
 function ensureFallbackDbDir() {
   if (!fs.existsSync(fallbackDbPath)) {
@@ -16,24 +15,17 @@ function ensureFallbackDbDir() {
   }
 }
 
-function ensureFallbackRootDir() {
-  if (!fs.existsSync(fallbackRootPath)) {
-    fs.mkdirSync(fallbackRootPath, { recursive: true });
-  }
-}
-
-function buildUniqueFallbackDbPath() {
-  return path.resolve(fallbackRootPath, `mongodb-${process.pid}-${Date.now()}`);
-}
-
 function isDbPathLockError(error) {
   const message = String(error?.message || "");
   return message.includes("DBPathInUse") || message.includes("mongod.lock");
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function connectDB() {
   let mongoUri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/nanohire";
-  let selectedFallbackPath = fallbackDbPath;
 
   try {
     await mongoose.connect(mongoUri);
@@ -46,37 +38,41 @@ export async function connectDB() {
 
     ensureFallbackDbDir();
 
-    try {
-      memoryServer = await MongoMemoryServer.create({
-        instance: {
-          dbPath: fallbackDbPath,
-          storageEngine: "wiredTiger"
+    let lastError;
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      try {
+        memoryServer = await MongoMemoryServer.create({
+          instance: {
+            dbPath: fallbackDbPath,
+            storageEngine: "wiredTiger"
+          }
+        });
+        lastError = null;
+        break;
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        if (!isDbPathLockError(fallbackError)) {
+          throw fallbackError;
         }
-      });
-    } catch (fallbackError) {
-      if (!isDbPathLockError(fallbackError)) {
-        throw fallbackError;
+
+        // During restart/watch mode the lock can be transient.
+        // Retry fixed path instead of switching to a fresh DB location.
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(500);
       }
+    }
 
-      ensureFallbackRootDir();
-      const uniqueFallbackDbPath = buildUniqueFallbackDbPath();
-      fs.mkdirSync(uniqueFallbackDbPath, { recursive: true });
-      selectedFallbackPath = uniqueFallbackDbPath;
-      console.warn(
-        `Default fallback DB path is locked. Using isolated fallback storage at ${uniqueFallbackDbPath}.`
+    if (!memoryServer) {
+      throw new Error(
+        `Fallback MongoDB path is locked at ${fallbackDbPath}. Stop the previous server process and restart. ${String(
+          lastError?.message || ""
+        )}`
       );
-
-      memoryServer = await MongoMemoryServer.create({
-        instance: {
-          dbPath: uniqueFallbackDbPath,
-          storageEngine: "wiredTiger"
-        }
-      });
     }
 
     mongoUri = memoryServer.getUri();
     await mongoose.connect(mongoUri);
-    console.log(`Using local fallback MongoDB storage at ${selectedFallbackPath}.`);
+    console.log(`Using local fallback MongoDB storage at ${fallbackDbPath}.`);
     return;
   }
 }

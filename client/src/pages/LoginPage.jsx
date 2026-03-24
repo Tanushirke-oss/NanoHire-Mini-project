@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [accountType, setAccountType] = useState("student");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -18,9 +19,12 @@ export default function LoginPage() {
   const googleButtonRef = useRef(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  useEffect(() => {
+    if (pendingRedirect && isAuthenticated) {
+      navigate("/", { replace: true });
+      setPendingRedirect(false);
+    }
+  }, [pendingRedirect, isAuthenticated, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -43,7 +47,7 @@ export default function LoginPage() {
           walletAddress: form.walletAddress
         });
       }
-      navigate("/");
+      setPendingRedirect(true);
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Authentication failed");
     } finally {
@@ -52,7 +56,12 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    if (!googleClientId || !googleButtonRef.current) return undefined;
+    if (!googleButtonRef.current) return undefined;
+
+    if (!googleClientId) {
+      googleButtonRef.current.innerHTML = "";
+      return undefined;
+    }
 
     let cancelled = false;
 
@@ -67,7 +76,7 @@ export default function LoginPage() {
           role: accountType,
           expectedRole: accountType
         });
-        navigate("/");
+        setPendingRedirect(true);
       } catch (err) {
         setError(err?.response?.data?.message || err?.message || "Google sign in failed");
       } finally {
@@ -119,6 +128,10 @@ export default function LoginPage() {
       cancelled = true;
     };
   }, [accountType, googleClientId, mode, navigate, signInWithGoogle]);
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <section className="auth-page">
@@ -202,14 +215,20 @@ export default function LoginPage() {
           {busy ? "Please wait..." : mode === "login" ? "Login" : "Register"}
         </button>
 
-        {googleClientId ? (
-          <div className="google-auth-wrap">
-            <p className="auth-subtitle">Or continue with Google</p>
-            <div ref={googleButtonRef} className="google-button-slot" />
-          </div>
-        ) : (
-          <p className="search-meta">Google login is available when VITE_GOOGLE_CLIENT_ID is configured.</p>
-        )}
+        <div className="google-auth-wrap">
+          <p className="auth-subtitle">Or continue with Google</p>
+          <div ref={googleButtonRef} className="google-button-slot" />
+          {!googleClientId ? (
+            <button
+              type="button"
+              className="secondary-btn"
+              disabled
+              title="Set VITE_GOOGLE_CLIENT_ID to enable Google login"
+            >
+              Continue with Google (Setup Required)
+            </button>
+          ) : null}
+        </div>
 
         <button
           type="button"

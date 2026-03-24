@@ -5,31 +5,10 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = "nanohire_token";
 const USER_KEY = "nanohire_current_user";
 const USERS_KEY = "nanohire_users_cache";
-const RESET_MARKER_KEY = "nanohire_reset_marker";
-const RESET_MARKER_VALUE = "fresh_start_dark_reset_2026_03_22";
 
-function applyFreshStartReset() {
-  try {
-    if (typeof window === "undefined") return;
-    const marker = localStorage.getItem(RESET_MARKER_KEY);
-    if (marker === RESET_MARKER_VALUE) return;
-
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("nanohire_")) {
-        keysToRemove.push(key);
-      }
-    }
-
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
-    localStorage.setItem(RESET_MARKER_KEY, RESET_MARKER_VALUE);
-  } catch (_error) {
-    // Ignore storage access errors and continue app bootstrap.
-  }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-applyFreshStartReset();
 
 function readJSON(key, fallback) {
   try {
@@ -51,6 +30,18 @@ export function AuthProvider({ children }) {
     setUsers(data);
   }
 
+  async function refreshSessionUser() {
+    if (!token) return null;
+    try {
+      const me = await getMe();
+      setCurrentUser(me.user);
+      return me.user;
+    } catch (_error) {
+      // Keep current session state when a transient request fails.
+      return currentUser;
+    }
+  }
+
   useEffect(() => {
     async function bootAuth() {
       if (!token) {
@@ -59,9 +50,21 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const me = await getMe();
+        let me;
+        try {
+          me = await getMe();
+        } catch (_error) {
+          // Retry once for transient startup/network race in local dev.
+          await sleep(400);
+          me = await getMe();
+        }
+
         setCurrentUser(me.user);
-        await refreshUsers();
+        try {
+          await refreshUsers();
+        } catch (_error) {
+          // User list can be refreshed later.
+        }
       } catch (_error) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
@@ -79,45 +82,105 @@ export function AuthProvider({ children }) {
 
   async function signIn(credentials) {
     const { expectedRole, ...payload } = credentials;
-    const response = await login(payload);
+    setAuthLoading(true);
+    try {
+      const response = await login(payload);
 
-    if (expectedRole && response.user?.role !== expectedRole) {
-      throw new Error(
-        `This account is registered as ${response.user?.role}. Switch to ${response.user?.role} login.`
-      );
+      if (expectedRole && response.user?.role !== expectedRole) {
+        throw new Error(
+          `This account is registered as ${response.user?.role}. Switch to ${response.user?.role} login.`
+        );
+      }
+
+      localStorage.setItem(TOKEN_KEY, response.token);
+      setToken(response.token);
+      setCurrentUser(response.user);
+
+      let finalUser = response.user;
+      try {
+        const me = await getMe();
+        finalUser = me.user;
+        setCurrentUser(me.user);
+      } catch (_error) {
+        // Keep login successful even if hydration call fails momentarily.
+      }
+
+      try {
+        await refreshUsers();
+      } catch (_error) {
+        // User list can be refreshed later.
+      }
+
+      return finalUser;
+    } finally {
+      setAuthLoading(false);
     }
-
-    localStorage.setItem(TOKEN_KEY, response.token);
-    setToken(response.token);
-    setCurrentUser(response.user);
-    await refreshUsers();
-    return response.user;
   }
 
   async function signUp(payload) {
-    const response = await register(payload);
-    localStorage.setItem(TOKEN_KEY, response.token);
-    setToken(response.token);
-    setCurrentUser(response.user);
-    await refreshUsers();
-    return response.user;
+    setAuthLoading(true);
+    try {
+      const response = await register(payload);
+      localStorage.setItem(TOKEN_KEY, response.token);
+      setToken(response.token);
+      setCurrentUser(response.user);
+
+      let finalUser = response.user;
+      try {
+        const me = await getMe();
+        finalUser = me.user;
+        setCurrentUser(me.user);
+      } catch (_error) {
+        // Keep signup successful even if hydration call fails momentarily.
+      }
+
+      try {
+        await refreshUsers();
+      } catch (_error) {
+        // User list can be refreshed later.
+      }
+
+      return finalUser;
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   async function signInWithGoogle(payload) {
     const { expectedRole, ...requestPayload } = payload || {};
-    const response = await loginWithGoogle(requestPayload);
+    setAuthLoading(true);
+    try {
+      const response = await loginWithGoogle(requestPayload);
 
-    if (expectedRole && response.user?.role !== expectedRole) {
-      throw new Error(
-        `This Google account is registered as ${response.user?.role}. Switch to ${response.user?.role} login.`
-      );
+      if (expectedRole && response.user?.role !== expectedRole) {
+        throw new Error(
+          `This Google account is registered as ${response.user?.role}. Switch to ${response.user?.role} login.`
+        );
+      }
+
+      localStorage.setItem(TOKEN_KEY, response.token);
+      setToken(response.token);
+      setCurrentUser(response.user);
+
+      let finalUser = response.user;
+      try {
+        const me = await getMe();
+        finalUser = me.user;
+        setCurrentUser(me.user);
+      } catch (_error) {
+        // Keep Google login successful even if hydration call fails momentarily.
+      }
+
+      try {
+        await refreshUsers();
+      } catch (_error) {
+        // User list can be refreshed later.
+      }
+
+      return finalUser;
+    } finally {
+      setAuthLoading(false);
     }
-
-    localStorage.setItem(TOKEN_KEY, response.token);
-    setToken(response.token);
-    setCurrentUser(response.user);
-    await refreshUsers();
-    return response.user;
   }
 
   function signOut() {
@@ -164,6 +227,7 @@ export function AuthProvider({ children }) {
         signOut,
         deleteAccount,
         refreshUsers,
+        refreshSessionUser,
         setUsers
       }}
     >

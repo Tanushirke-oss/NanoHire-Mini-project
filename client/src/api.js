@@ -102,6 +102,16 @@ function shouldRetryWithReDetection(error) {
   return error?.code === "ERR_NETWORK";
 }
 
+function shouldRetryNetworkOnce(error) {
+  const requestConfig = error?.config;
+  if (!requestConfig || requestConfig.__retriedNetworkOnce) return false;
+  return error?.code === "ERR_NETWORK";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const api = axios.create({
   baseURL: ENV_API_URL || DEFAULT_LOCAL_API_URL
 });
@@ -119,7 +129,17 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (!shouldRetryWithReDetection(error)) {
-      return Promise.reject(error);
+      if (!shouldRetryNetworkOnce(error)) {
+        return Promise.reject(error);
+      }
+
+      // Retry once to handle temporary API startup race conditions.
+      await sleep(500);
+      const retryConfig = {
+        ...error.config,
+        __retriedNetworkOnce: true
+      };
+      return api.request(retryConfig);
     }
 
     const retryConfig = {

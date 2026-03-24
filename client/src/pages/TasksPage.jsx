@@ -140,6 +140,36 @@ export default function TasksPage() {
 
   return (
     <section className="page tasks-page">
+      {currentUser?.role === "student" ? (
+        <div className="panel">
+          <h2>⭐ Tasks You Got Selected For</h2>
+          {selectedForStudent.length === 0 ? (
+            <p className="search-meta">You are not selected for any task yet. Keep applying!</p>
+          ) : (
+            <>
+              <MotivationalMessage isSelected={true} />
+              <div className="gig-list animated-list">
+                {selectedForStudent.map((gig) => {
+                  const hirerInfo = usersMap[gig.hirerId] || {};
+                  return (
+                    <div key={gig.id} className="gig-card-with-timer">
+                      <TaskTimer deadline={gig.deadline} />
+                      <GigCard
+                        gig={gig}
+                        hirerName={hirerInfo.name || "Unknown"}
+                        hirerRole={hirerInfo.role || "hirer"}
+                        selectedForCurrentStudent
+                        onDeleteTask={handleDeleteTask}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+
       <div className="tasks-hero">
         <div>
           <h1>Task Explorer</h1>
@@ -205,36 +235,6 @@ export default function TasksPage() {
         </div>
         <p className="search-meta">Showing {filteredTasks.length} task(s)</p>
       </div>
-
-      {currentUser?.role === "student" ? (
-        <div className="panel">
-          <h2>⭐ Tasks You Got Selected For</h2>
-          {selectedForStudent.length === 0 ? (
-            <p className="search-meta">You are not selected for any task yet. Keep applying!</p>
-          ) : (
-            <>
-              <MotivationalMessage isSelected={true} />
-              <div className="gig-list animated-list">
-                {selectedForStudent.map((gig) => {
-                  const hirerInfo = usersMap[gig.hirerId] || {};
-                  return (
-                    <div key={gig.id} className="gig-card-with-timer">
-                      <TaskTimer deadline={gig.deadline} />
-                      <GigCard
-                        gig={gig}
-                        hirerName={hirerInfo.name || "Unknown"}
-                        hirerRole={hirerInfo.role || "hirer"}
-                        selectedForCurrentStudent
-                        onDeleteTask={handleDeleteTask}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      ) : null}
 
       {currentUser?.role === "student" && appliedButNotSelected.length > 0 ? (
         <div className="panel">

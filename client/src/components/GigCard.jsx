@@ -20,6 +20,8 @@ export default function GigCard({
   const { currentUser } = useAuth();
   const meta = statusMeta(gig.status);
   const canDelete = typeof onDeleteTask === "function" && currentUser?.id === gig.hirerId;
+  const showReleasedBadge =
+    currentUser?.id === gig.hirerId && gig.payment?.status === "released_to_student_wallet";
   const feeLabel = Number.isFinite(gig.feeMin) && Number.isFinite(gig.feeMax)
     ? `Rs. ${gig.feeMin} - Rs. ${gig.feeMax}`
     : `Rs. ${gig.fee}`;
@@ -42,6 +44,7 @@ export default function GigCard({
         <h3>{gig.title}</h3>
         <span className={`status status-${gig.status}`}>{meta.label}</span>
       </div>
+      {showReleasedBadge ? <span className="payment-release-pill">Payment Released</span> : null}
       <p className="status-description">{meta.stage}</p>
       <p>{gig.description}</p>
       <div className="chip-list">

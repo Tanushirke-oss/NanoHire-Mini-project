@@ -189,6 +189,31 @@ router.post("/:id/select", async (req, res) => {
   const exists = gig.applications.some((a) => a.studentId === studentId);
   if (!exists) return res.status(400).json({ message: "Selected student has not applied" });
 
+    const hirer = await User.findById(gig.hirerId);
+    if (!hirer) {
+      return res.status(404).json({ message: "Hirer account not found" });
+    }
+
+    // If escrow was prepared before selection, payment.status may already be escrow_locked.
+    // Deduct only when this gig has no prior escrow_lock entry, so we avoid duplicate debits.
+    const walletHistory = Array.isArray(hirer.walletTransactions) ? hirer.walletTransactions : [];
+    const alreadyDebited = walletHistory.some(
+      (entry) => entry?.gigId === gig.id && entry?.type === "escrow_lock"
+    );
+
+    if (!alreadyDebited) {
+      try {
+        await applyWalletDelta(hirer, {
+          delta: -Number(gig.fee || 0),
+          type: "escrow_lock",
+          note: `Escrow locked for task: ${gig.title}`,
+          gigId: gig.id
+        });
+      } catch (error) {
+        return res.status(400).json({ message: error.message || "Insufficient wallet balance." });
+      }
+    }
+
   gig.selectedStudentId = studentId;
   gig.status = "in_progress";
   gig.payment.status = "escrow_locked";
@@ -376,6 +401,18 @@ router.post("/:id/dispute/resolve", async (req, res) => {
   } else {
     gig.status = "cancelled";
     gig.payment.status = "refunded_to_hirer_wallet";
+
+    const hirer = await User.findById(gig.hirerId);
+    if (!hirer) {
+      return res.status(404).json({ message: "Hirer account not found" });
+    }
+
+    await applyWalletDelta(hirer, {
+      delta: Number(gig.fee || 0),
+      type: "dispute_refund",
+      note: `Escrow refunded after dispute: ${gig.title}`,
+      gigId: gig.id
+    });
   }
 
   gig.payment.releasedAt = new Date().toISOString();

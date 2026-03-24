@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import { createGig, deleteGig, getGigs, getUser } from "../api";
+import { Link } from "react-router-dom";
+import { createGig, deleteGig, getGigs, getMessages, getUser } from "../api";
 import GigCard from "../components/GigCard";
+import TaskTimer from "../components/TaskTimer";
+import MotivationalMessage from "../components/MotivationalMessage";
 import { useAuth } from "../context/AuthContext";
+import { buildActivityNotifications } from "../utils/activityNotifications";
 
 function getDraftKey(userId) {
   return `nanohire_marketplace_draft_${userId || "guest"}`;
@@ -38,8 +42,9 @@ function parseBudgetInput(rawFee) {
 }
 
 export default function MarketplacePage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshSessionUser } = useAuth();
   const [gigs, setGigs] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [usersMap, setUsersMap] = useState({});
   const [studentHirerMode, setStudentHirerMode] = useState(false);
   const [form, setForm] = useState({
@@ -83,8 +88,15 @@ export default function MarketplacePage() {
   }
 
   useEffect(() => {
-    loadGigs();
-  }, []);
+    async function loadPageData() {
+      await loadGigs();
+      const inbox = await getMessages();
+      setMessages(inbox);
+      await refreshSessionUser();
+    }
+
+    loadPageData();
+  }, [refreshSessionUser]);
 
   useEffect(() => {
     const userId = currentUser?.id;
@@ -158,6 +170,11 @@ export default function MarketplacePage() {
     (gig) => gig.selectedStudentId === currentUser?.id && ["in_progress", "submitted"].includes(gig.status)
   );
   const posterWalletBalance = Number(currentUser?.walletBalance || 0);
+  const notifications = buildActivityNotifications({
+    currentUser,
+    gigs,
+    messages
+  });
 
   return (
     <section className="page">
@@ -169,6 +186,51 @@ export default function MarketplacePage() {
             : "Apply to internships, and switch on student hirer mode whenever you want to post your own task."}
         </p>
       </div>
+
+      {notifications.length > 0 ? (
+        <div className="panel activity-panel">
+          <h2>Notifications</h2>
+          <div className="activity-list">
+            {notifications.map((item) => (
+              <Link key={item.id} to={item.link} className="activity-item-link">
+                <div className="activity-item">
+                  <p>{item.text}</p>
+                  <span>{new Date(item.createdAt).toLocaleString()}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!isHirer ? (
+        <div className="panel">
+          <h2>⭐ Tasks You Got Selected For</h2>
+          {selectedForStudent.length === 0 ? (
+            <p className="search-meta">You have not been selected for a task yet.</p>
+          ) : (
+            <>
+              <MotivationalMessage isSelected={true} />
+              <div className="gig-list">
+                {selectedForStudent.map((gig) => {
+                  const hirerInfo = usersMap[gig.hirerId] || {};
+                  return (
+                    <div key={gig.id} className="gig-card-with-timer">
+                      <TaskTimer deadline={gig.deadline} />
+                      <GigCard
+                        gig={gig}
+                        hirerName={hirerInfo.name || "Unknown"}
+                        hirerRole={hirerInfo.role || "hirer"}
+                        selectedForCurrentStudent
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
 
       {!isHirer ? (
         <div className="panel student-hirer-toggle">
@@ -274,30 +336,6 @@ export default function MarketplacePage() {
           </div>
         )}
       </div>
-
-      {!isHirer ? (
-        <div className="panel">
-          <h2>Tasks You Got Selected For</h2>
-          {selectedForStudent.length === 0 ? (
-            <p className="search-meta">You have not been selected for a task yet.</p>
-          ) : (
-            <div className="gig-list">
-              {selectedForStudent.map((gig) => {
-                const hirerInfo = usersMap[gig.hirerId] || {};
-                return (
-                  <GigCard
-                    key={gig.id}
-                    gig={gig}
-                    hirerName={hirerInfo.name || "Unknown"}
-                    hirerRole={hirerInfo.role || "hirer"}
-                    selectedForCurrentStudent
-                  />
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : null}
 
       {isHirer ? (
         <div className="panel">

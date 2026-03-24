@@ -55,8 +55,13 @@ export default function ProfilePage() {
   const [publicWalletDraft, setPublicWalletDraft] = useState("");
   const [publicWalletStatus, setPublicWalletStatus] = useState("");
   const [savingPublicWallet, setSavingPublicWallet] = useState(false);
-  const walletHistory = (currentUser?.walletTransactions || []).slice().reverse();
-  const shownWalletBalance = currentUser?.walletBalance ?? 0;
+  const [ownWalletBalance, setOwnWalletBalance] = useState(0);
+  const [ownWalletTransactions, setOwnWalletTransactions] = useState([]);
+  const walletHistory = ownWalletTransactions
+    .filter((entry) => Boolean(String(entry?.gigId || "").trim()) && entry?.type !== "developer-adjustment")
+    .slice()
+    .reverse();
+  const shownWalletBalance = ownWalletBalance;
   const isDeveloper = currentUser?.email === "tanu.shirke06@gmail.com";
 
   useEffect(() => {
@@ -75,6 +80,8 @@ export default function ProfilePage() {
       }
 
       const user = await getUser(currentUser.id);
+      setOwnWalletBalance(Number(user.walletBalance || 0));
+      setOwnWalletTransactions(Array.isArray(user.walletTransactions) ? user.walletTransactions : []);
       setForm({
         name: user.name ?? "",
         role: user.role ?? "student",
@@ -113,6 +120,9 @@ export default function ProfilePage() {
         portfolio: portfolioFile
       });
     }
+
+    setOwnWalletBalance(Number(updated.walletBalance || 0));
+    setOwnWalletTransactions(Array.isArray(updated.walletTransactions) ? updated.walletTransactions : []);
 
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
     setStatusMessage("Profile saved successfully.");

@@ -5,8 +5,6 @@ import {
   applyGig,
   getGig,
   getUser,
-  postFeedback,
-  postUpdate,
   raiseDispute,
   resolveDispute,
   setGigOnchain,
@@ -14,6 +12,7 @@ import {
   submitGig
 } from "../api";
 import { useAuth } from "../context/AuthContext";
+import MotivationalMessage from "../components/MotivationalMessage";
 import {
   acceptAndReleaseOnchain,
   createOnchainGigTransaction,
@@ -25,13 +24,11 @@ import {
 
 export default function GigDetailPage() {
   const { gigId } = useParams();
-  const { currentUser, users } = useAuth();
+  const { currentUser, users, refreshSessionUser } = useAuth();
   const [gig, setGig] = useState(null);
   const [applyNote, setApplyNote] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
   const [workSampleFile, setWorkSampleFile] = useState(null);
-  const [updateText, setUpdateText] = useState("");
-  const [feedbackText, setFeedbackText] = useState("");
   const [deliverableUrl, setDeliverableUrl] = useState("");
   const [deliverableFile, setDeliverableFile] = useState(null);
   const [submissionNote, setSubmissionNote] = useState("");
@@ -81,6 +78,16 @@ export default function GigDetailPage() {
     () => gig?.applications?.some((a) => a.studentId === currentUser?.id),
     [gig, currentUser]
   );
+  const isNotSelectedAfterApplying = useMemo(
+    () =>
+      Boolean(
+        hasApplied &&
+          currentUser?.role === "student" &&
+          gig?.selectedStudentId &&
+          gig.selectedStudentId !== currentUser?.id
+      ),
+    [currentUser?.id, currentUser?.role, gig?.selectedStudentId, hasApplied]
+  );
 
   if (!gig) return <section className="page">Loading internship...</section>;
 
@@ -118,26 +125,12 @@ export default function GigDetailPage() {
       }
 
       await selectApplicant(gig.id, { studentId, onchainTxHash });
-      loadGig();
+      await Promise.all([loadGig(), refreshSessionUser()]);
     } catch (error) {
       setChainMessage(error.message || "Failed to select student.");
     } finally {
       setChainBusy(false);
     }
-  }
-
-  async function handleUpdate() {
-    if (!currentUser) return;
-    await postUpdate(gig.id, { studentId: currentUser.id, message: updateText });
-    setUpdateText("");
-    loadGig();
-  }
-
-  async function handleFeedback() {
-    if (!currentUser) return;
-    await postFeedback(gig.id, { hirerId: currentUser.id, message: feedbackText });
-    setFeedbackText("");
-    loadGig();
   }
 
   async function handleSubmitWork() {
@@ -167,7 +160,7 @@ export default function GigDetailPage() {
       setDeliverableUrl("");
       setDeliverableFile(null);
       setSubmissionNote("");
-      loadGig();
+      await Promise.all([loadGig(), refreshSessionUser()]);
     } catch (error) {
       setChainMessage(error.message || "Failed to submit work.");
     } finally {
@@ -208,7 +201,7 @@ export default function GigDetailPage() {
       }
 
       await acceptGig(gig.id, { hirerId: currentUser.id, releaseTxHash });
-      loadGig();
+      await Promise.all([loadGig(), refreshSessionUser()]);
     } catch (error) {
       setChainMessage(error.message || "Failed to release payment.");
     } finally {
@@ -256,7 +249,7 @@ export default function GigDetailPage() {
       }
 
       await resolveDispute(gig.id, { decision, resolveTxHash });
-      await loadGig();
+      await Promise.all([loadGig(), refreshSessionUser()]);
       setChainMessage("Dispute resolved.");
     } catch (error) {
       setChainMessage(error.message || "Failed to resolve dispute.");
@@ -389,67 +382,23 @@ export default function GigDetailPage() {
               </div>
               <button onClick={handleApply} className="primary-btn">✨ Apply For Internship</button>
             </div>
+          ) : isNotSelectedAfterApplying ? (
+            <div className="apply-status-stack">
+              <div className="applied-chip">✓ You have applied</div>
+              <MotivationalMessage isSelected={false} />
+            </div>
           ) : hasApplied && !isSelectedStudent ? (
             <div className="applied-chip">✓ You have applied</div>
           ) : isSelectedStudent ? (
-            <div className="selection-banner">
-              🎉 <strong>Congratulations! You have been selected for this internship!</strong>
+            <div className="apply-status-stack">
+              <div className="selection-banner">
+                🎉 <strong>Congratulations! You have been selected for this internship!</strong>
+              </div>
+              <MotivationalMessage isSelected={true} />
             </div>
           ) : null}
         </div>
 
-        <div className="panel">
-          <h2>📈 Progress Thread</h2>
-          {gig.updates.map((u) => {
-            const student = applicantMap[u.studentId];
-            return (
-              <div key={u.id} className="timeline-item">
-                {student && (
-                  <div className="message-author">
-                    <img 
-                      src={"https://ui-avatars.com/api/?name=" + student.name + "&background=random"} 
-                      alt={student.name}
-                    />
-                    <Link to={`/profile/${student.id}`} className="student-name-link">{student.name}</Link>
-                  </div>
-                )}
-                <p>{u.message}</p>
-                <time>{new Date(u.createdAt).toLocaleString()}</time>
-              </div>
-            );
-          })}
-          {gig.feedback.map((f) => (
-            <div key={f.id} className="timeline-item feedback">
-              <div className="message-author">
-                <strong>🏢 Hirer Feedback</strong>
-              </div>
-              <p>{f.message}</p>
-              <time>{new Date(f.createdAt).toLocaleString()}</time>
-            </div>
-          ))}
-
-          {isSelectedStudent && gig.status === "in_progress" ? (
-            <div className="action-box">
-              <textarea
-                placeholder="Post progress update"
-                value={updateText}
-                onChange={(e) => setUpdateText(e.target.value)}
-              />
-              <button onClick={handleUpdate} className="primary-btn">Send Update</button>
-            </div>
-          ) : null}
-
-          {isHirer && gig.status === "in_progress" ? (
-            <div className="action-box">
-              <textarea
-                placeholder="Share feedback or requested changes"
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-              />
-              <button onClick={handleFeedback} className="primary-btn">Send Feedback</button>
-            </div>
-          ) : null}
-        </div>
         {!isHirer ? (
           <Link to={`/messages/${gig.id}/${gig.hirerId}`} className="message-link-btn">
             Message Hirer
