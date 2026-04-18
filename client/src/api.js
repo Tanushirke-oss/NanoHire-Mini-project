@@ -262,7 +262,7 @@ export const resolveDispute = async (gigId, payload) =>
   (await api.post(`/gigs/${gigId}/dispute/resolve`, payload)).data;
 export const getDeveloperStats = async () => (await api.get("/gigs/dev/stats")).data;
 export const getMessages = async () => (await api.get("/messages")).data;
-export const getConversation = async (gigId, otherUserId) => 
+export const getConversation = async (gigId, otherUserId) =>
   (await api.get(`/messages/${gigId}/${otherUserId}`)).data;
-export const sendMessage = async (payload) => 
+export const sendMessage = async (payload) =>
   (await api.post("/messages", payload)).data;

@@ -8,13 +8,15 @@
     "contracts"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel dev:server dev:client",
-    "dev:client": "npm run dev --workspace client",
-    "dev:server": "npx kill-port 4000 && npm run dev --workspace server",
+    "dev": "npm run dev:clean && concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:clean": "npx kill-port 4000 4001 4002 4003 4004 4005 4006 4007 4008 4009 4010 5173 5174 5175 || echo Dev ports already free",
+    "dev:client": "node scripts/waitForServerAndStartClient.js",
+    "dev:server": "npm run dev --workspace server",
     "build": "npm run build --workspace client",
     "start": "npm run start --workspace server"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "kill-port": "^2.0.1",
     "npm-run-all": "^4.1.5"
   }

@@ -58,16 +58,21 @@ router.get("/dev/stats", async (req, res) => {
     const stats = {
       timestamp: new Date().toISOString(),
       totalUsers: allUsers.length,
-      totalHirers: allUsers.filter(u => u.role === "hirer").length,
-      totalStudents: allUsers.filter(u => u.role === "student").length,
-      totalOpenTasks: allGigs.filter(g => g.status === "open").length,
-      totalAllottedTasks: allGigs.filter(g => g.status === "in_progress").length,
-      totalSubmittedTasks: allGigs.filter(g => g.status === "submitted").length,
-      totalCompletedTasks: allGigs.filter(g => g.status === "completed").length,
+      totalHirers: allUsers.filter((u) => u.role === "hirer").length,
+      totalStudents: allUsers.filter((u) => u.role === "student").length,
+      totalTasks: allGigs.length,
+      totalDeliveries: allGigs.reduce(
+        (sum, g) => sum + (Array.isArray(g.submissions) ? g.submissions.length : 0),
+        0
+      ),
+      totalOpenTasks: allGigs.filter((g) => g.status === "open").length,
+      totalAllottedTasks: allGigs.filter((g) => g.status === "in_progress").length,
+      totalSubmittedTasks: allGigs.filter((g) => g.status === "submitted").length,
+      totalCompletedTasks: allGigs.filter((g) => g.status === "completed").length,
       totalTransactionAmount: allGigs
-        .filter(g => g.status === "completed")
+        .filter((g) => g.status === "completed")
         .reduce((sum, g) => sum + (Number(g.fee) || 0), 0),
-      allTasks: allGigs.map(g => ({
+      allTasks: allGigs.map((g) => ({
         id: g.id,
         title: g.title,
         status: g.status,
@@ -198,7 +203,7 @@ router.post("/:id/select", async (req, res) => {
     // Deduct only when this gig has no prior escrow_lock entry, so we avoid duplicate debits.
     const walletHistory = Array.isArray(hirer.walletTransactions) ? hirer.walletTransactions : [];
     const alreadyDebited = walletHistory.some(
-      (entry) => entry?.gigId === gig.id && entry?.type === "escrow_lock"
+      (entry) => entry?.gigId === gig._id.toString() && entry?.type === "escrow_lock"
     );
 
     if (!alreadyDebited) {
@@ -207,7 +212,7 @@ router.post("/:id/select", async (req, res) => {
           delta: -Number(gig.fee || 0),
           type: "escrow_lock",
           note: `Escrow locked for task: ${gig.title}`,
-          gigId: gig.id
+          gigId: gig._id.toString()
         });
       } catch (error) {
         return res.status(400).json({ message: error.message || "Insufficient wallet balance." });
@@ -288,9 +293,6 @@ router.post("/:id/submit", upload.single("deliverable"), async (req, res) => {
   const studentId = req.user.id;
   let finalDeliverableUrl = String(deliverableUrl || "").trim();
   if (req.file) {
-    if (req.file.mimetype !== "application/pdf") {
-      return res.status(400).json({ message: "Only PDF files are allowed for direct submission" });
-    }
     const host = `${req.protocol}://${req.get("host")}`;
     const localUrl = `${host}/uploads/${req.file.filename}`;
     finalDeliverableUrl = await uploadFileAndGetUrl(req.file, localUrl);
@@ -338,7 +340,7 @@ router.post("/:id/accept", async (req, res) => {
     delta: Number(gig.fee || 0),
     type: "gig_payout",
     note: `Task payment received: ${gig.title}`,
-    gigId: gig.id
+    gigId: gig._id.toString()
   });
 
   await gig.save();
@@ -396,7 +398,7 @@ router.post("/:id/dispute/resolve", async (req, res) => {
       delta: Number(gig.fee || 0),
       type: "dispute_release",
       note: `Dispute resolved in student favor: ${gig.title}`,
-      gigId: gig.id
+      gigId: gig._id.toString()
     });
   } else {
     gig.status = "cancelled";
@@ -411,7 +413,7 @@ router.post("/:id/dispute/resolve", async (req, res) => {
       delta: Number(gig.fee || 0),
       type: "dispute_refund",
       note: `Escrow refunded after dispute: ${gig.title}`,
-      gigId: gig.id
+      gigId: gig._id.toString()
     });
   }
 
@@ -438,7 +440,7 @@ router.delete("/:id", async (req, res) => {
     return res.status(403).json({ message: "You can only delete your own tasks" });
   }
 
-  await Message.deleteMany({ gigId: gig.id });
+  await Message.deleteMany({ gigId: gig._id.toString() });
   await Gig.deleteOne({ _id: gig._id });
 
   return res.json({ message: "Task deleted successfully" });

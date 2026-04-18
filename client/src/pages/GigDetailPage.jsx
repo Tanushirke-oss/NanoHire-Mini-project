@@ -365,7 +365,7 @@ export default function GigDetailPage() {
                 <input
                   id="resume-upload"
                   type="file"
-                  accept=".pdf,.doc,.docx"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
                   onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
                 />
                 {resumeFile && <span className="file-name">{resumeFile.name}</span>}
@@ -375,7 +375,7 @@ export default function GigDetailPage() {
                 <input
                   id="work-sample-upload"
                   type="file"
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.png,.jpg,.jpeg,.webp"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,image/*"
                   onChange={(e) => setWorkSampleFile(e.target.files?.[0] || null)}
                 />
                 {workSampleFile ? <span className="file-name">{workSampleFile.name}</span> : null}
@@ -437,11 +437,11 @@ export default function GigDetailPage() {
               onChange={(e) => setDeliverableUrl(e.target.value)}
             />
             <div className="file-input-group">
-              <label htmlFor="task-deliverable-file">Upload PDF Deliverable (Optional)</label>
+              <label htmlFor="task-deliverable-file">Upload Deliverable (PDF, PPT, Image)</label>
               <input
                 id="task-deliverable-file"
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".pdf,.ppt,.pptx,image/*"
                 onChange={(e) => setDeliverableFile(e.target.files?.[0] || null)}
               />
               {deliverableFile ? <span className="file-name">{deliverableFile.name}</span> : null}

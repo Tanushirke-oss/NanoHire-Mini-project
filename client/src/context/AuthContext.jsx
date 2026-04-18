@@ -5,9 +5,29 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = "nanohire_token";
 const USER_KEY = "nanohire_current_user";
 const USERS_KEY = "nanohire_users_cache";
+const FALLBACK_AUTH_CONTEXT = {
+  users: [],
+  currentUser: null,
+  token: "",
+  isAuthenticated: false,
+  authLoading: false,
+  signIn: async () => null,
+  signInWithGoogle: async () => null,
+  signUp: async () => null,
+  signOut: () => {},
+  deleteAccount: async () => {},
+  refreshUsers: async () => {},
+  refreshSessionUser: async () => null,
+  setUsers: () => {}
+};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isInvalidSessionError(error) {
+  const status = error?.response?.status;
+  return status === 401 || status === 403 || status === 404;
 }
 
 function readJSON(key, fallback) {
@@ -65,13 +85,16 @@ export function AuthProvider({ children }) {
         } catch (_error) {
           // User list can be refreshed later.
         }
-      } catch (_error) {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        localStorage.removeItem(USERS_KEY);
-        setToken("");
-        setCurrentUser(null);
-        setUsers([]);
+      } catch (error) {
+        // Keep cached auth state on transient failures; only clear on invalid session.
+        if (isInvalidSessionError(error)) {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+          localStorage.removeItem(USERS_KEY);
+          setToken("");
+          setCurrentUser(null);
+          setUsers([]);
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -238,8 +261,5 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-  return context;
+  return context || FALLBACK_AUTH_CONTEXT;
 }

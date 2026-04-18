@@ -16,9 +16,6 @@ export default function LoginPage() {
     password: "",
     role: "student"
   });
-  const googleButtonRef = useRef(null);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-
   useEffect(() => {
     if (pendingRedirect && isAuthenticated) {
       navigate("/", { replace: true });
@@ -49,85 +46,15 @@ export default function LoginPage() {
       }
       setPendingRedirect(true);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Authentication failed");
+      if (err?.code === "ERR_NETWORK") {
+        setError("Server is starting. Please wait a moment and try login again.");
+      } else {
+        setError(err?.response?.data?.message || err?.message || "Authentication failed");
+      }
     } finally {
       setBusy(false);
     }
   }
-
-  useEffect(() => {
-    if (!googleButtonRef.current) return undefined;
-
-    if (!googleClientId) {
-      googleButtonRef.current.innerHTML = "";
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    const handleGoogleCredential = async (response) => {
-      if (cancelled || !response?.credential) return;
-
-      setError("");
-      setBusy(true);
-      try {
-        await signInWithGoogle({
-          idToken: response.credential,
-          role: accountType,
-          expectedRole: accountType
-        });
-        setPendingRedirect(true);
-      } catch (err) {
-        setError(err?.response?.data?.message || err?.message || "Google sign in failed");
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const renderGoogleButton = () => {
-      if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return;
-
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: handleGoogleCredential
-      });
-
-      googleButtonRef.current.innerHTML = "";
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: "outline",
-        size: "large",
-        text: mode === "login" ? "continue_with" : "signup_with",
-        shape: "pill",
-        width: 320
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      renderGoogleButton();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existingScript) {
-      existingScript.addEventListener("load", renderGoogleButton, { once: true });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = renderGoogleButton;
-    document.head.appendChild(script);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accountType, googleClientId, mode, navigate, signInWithGoogle]);
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -214,21 +141,6 @@ export default function LoginPage() {
         <button type="submit" disabled={busy}>
           {busy ? "Please wait..." : mode === "login" ? "Login" : "Register"}
         </button>
-
-        <div className="google-auth-wrap">
-          <p className="auth-subtitle">Or continue with Google</p>
-          <div ref={googleButtonRef} className="google-button-slot" />
-          {!googleClientId ? (
-            <button
-              type="button"
-              className="secondary-btn"
-              disabled
-              title="Set VITE_GOOGLE_CLIENT_ID to enable Google login"
-            >
-              Continue with Google (Setup Required)
-            </button>
-          ) : null}
-        </div>
 
         <button
           type="button"

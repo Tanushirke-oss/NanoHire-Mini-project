@@ -58,7 +58,7 @@ export default function ProfilePage() {
   const [ownWalletBalance, setOwnWalletBalance] = useState(0);
   const [ownWalletTransactions, setOwnWalletTransactions] = useState([]);
   const walletHistory = ownWalletTransactions
-    .filter((entry) => Boolean(String(entry?.gigId || "").trim()) && entry?.type !== "developer-adjustment")
+    .filter((entry) => entry?.type !== "developer-adjustment")
     .slice()
     .reverse();
   const shownWalletBalance = ownWalletBalance;
@@ -447,7 +447,7 @@ export default function ProfilePage() {
           <input
             type="file"
             onChange={(e) => setPortfolioFile(e.target.files?.[0] ?? null)}
-            accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.png,.jpg,.jpeg,.webp"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,image/*"
           />
         </label>
 
@@ -456,7 +456,7 @@ export default function ProfilePage() {
           <input
             type="file"
             onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
           />
         </label>
 

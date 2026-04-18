@@ -26,8 +26,17 @@ export default function GigCard({
     ? `Rs. ${gig.feeMin} - Rs. ${gig.feeMax}`
     : `Rs. ${gig.fee}`;
 
+  const isCompleted = gig.status === "completed";
+  const isInProgress = gig.status === "in_progress";
+
+  const cardStyle = {};
+  if (isCompleted) cardStyle.backgroundColor = "#dcf5df"; // Stronger pale green
+  else if (isInProgress) cardStyle.backgroundColor = "#fff5b8"; // Stronger pale yellow
+
+  const amountReceived = gig.payment?.amount || gig.fee;
+
   return (
-    <article className="gig-card">
+    <article className="gig-card" style={cardStyle}>
       {selectedForCurrentStudent ? <span className="selected-task-pill">Selected For You</span> : null}
       <div className="gig-card-publisher">
         <img 
@@ -40,6 +49,15 @@ export default function GigCard({
           <div className="publisher-role">{hirerRole === "hirer" ? "🏢 Hirer" : "👤 Student"}</div>
         </div>
       </div>
+      
+{isCompleted && (currentUser?.id === gig.hirerId || currentUser?.id === gig.selectedStudentId) ? (
+        <div style={{ backgroundColor: "#d4edda", color: "#155724", padding: "10px", borderRadius: "6px", marginBottom: "12px", border: "1px solid #c3e6cb", fontWeight: "bold" }}>
+          {currentUser?.id === gig.hirerId 
+            ? "Payment was successful"
+            : `You received a payment of Rs ${amountReceived}`}
+        </div>
+      ) : null}
+
       <div className="gig-card-head">
         <h3>{gig.title}</h3>
         <span className={`status status-${gig.status}`}>{meta.label}</span>

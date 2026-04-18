@@ -8,6 +8,7 @@ let memoryServer;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fallbackDbPath = path.resolve(__dirname, "../../.data/mongodb");
+const fallbackRootPath = path.resolve(__dirname, "../../.data");
 
 function ensureFallbackDbDir() {
   if (!fs.existsSync(fallbackDbPath)) {
@@ -15,13 +16,41 @@ function ensureFallbackDbDir() {
   }
 }
 
-function isDbPathLockError(error) {
-  const message = String(error?.message || "");
-  return message.includes("DBPathInUse") || message.includes("mongod.lock");
+function ensureFallbackRootDir() {
+  if (!fs.existsSync(fallbackRootPath)) {
+    fs.mkdirSync(fallbackRootPath, { recursive: true });
+  }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function buildUniqueFallbackDbPath() {
+  return path.resolve(fallbackRootPath, `mongodb-${process.pid}-${Date.now()}`);
+}
+
+function fallbackLockFilePath() {
+  return path.resolve(fallbackDbPath, "mongod.lock");
+}
+
+function pickFallbackDbPath() {
+  ensureFallbackDbDir();
+
+  const lockPath = fallbackLockFilePath();
+  if (fs.existsSync(lockPath)) {
+    try {
+      // Attempt to clean up stale lock files from ungraceful shutdowns (e.g. nodemon restarts).
+      fs.unlinkSync(lockPath);
+      const wtLock = path.resolve(fallbackDbPath, "WiredTiger.lock");
+      if (fs.existsSync(wtLock)) fs.unlinkSync(wtLock);
+      console.log(`Deleted stale MongoDB lock files to reuse existing database.`);
+    } catch (err) {
+      console.warn(`Could not delete stale lock file. Will create isolated storage. Error: ${err.message}`);
+      ensureFallbackRootDir();
+      const isolatedPath = buildUniqueFallbackDbPath();
+      fs.mkdirSync(isolatedPath, { recursive: true });
+      return isolatedPath;
+    }
+  }
+
+  return fallbackDbPath;
 }
 
 export async function connectDB() {
@@ -36,43 +65,24 @@ export async function connectDB() {
       throw error;
     }
 
-    ensureFallbackDbDir();
+    const chosenFallbackDbPath = pickFallbackDbPath();
 
-    let lastError;
-    for (let attempt = 1; attempt <= 10; attempt += 1) {
-      try {
-        memoryServer = await MongoMemoryServer.create({
-          instance: {
-            dbPath: fallbackDbPath,
-            storageEngine: "wiredTiger"
-          }
-        });
-        lastError = null;
-        break;
-      } catch (fallbackError) {
-        lastError = fallbackError;
-        if (!isDbPathLockError(fallbackError)) {
-          throw fallbackError;
-        }
-
-        // During restart/watch mode the lock can be transient.
-        // Retry fixed path instead of switching to a fresh DB location.
-        // eslint-disable-next-line no-await-in-loop
-        await sleep(500);
-      }
-    }
-
-    if (!memoryServer) {
-      throw new Error(
-        `Fallback MongoDB path is locked at ${fallbackDbPath}. Stop the previous server process and restart. ${String(
-          lastError?.message || ""
-        )}`
+    if (chosenFallbackDbPath !== fallbackDbPath) {
+      console.warn(
+        `Fallback MongoDB path is locked at ${fallbackDbPath}. Starting isolated local storage at ${chosenFallbackDbPath}.`
       );
     }
 
+    memoryServer = await MongoMemoryServer.create({
+      instance: {
+        dbPath: chosenFallbackDbPath,
+        storageEngine: "wiredTiger"
+      }
+    });
+
     mongoUri = memoryServer.getUri();
     await mongoose.connect(mongoUri);
-    console.log(`Using local fallback MongoDB storage at ${fallbackDbPath}.`);
+    console.log(`Using local fallback MongoDB storage at ${chosenFallbackDbPath}.`);
     return;
   }
 }

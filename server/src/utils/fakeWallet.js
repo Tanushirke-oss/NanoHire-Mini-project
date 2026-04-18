@@ -61,7 +61,7 @@ export async function ensureFakeWalletAssigned(user) {
 export function serializeWallet(user) {
   const walletTransactions = Array.isArray(user.walletTransactions)
     ? user.walletTransactions.filter(
-        (entry) => entry?.type !== "developer-adjustment" && Boolean(String(entry?.gigId || "").trim())
+        (entry) => entry?.type !== "developer-adjustment" 
       )
     : [];
 
@@ -107,6 +107,7 @@ export async function applyWalletDelta(user, { delta, type, note, gigId = "" }) 
 
   user.walletBalance = nextBalance;
   user.walletTransactions = history.slice(-100);
+  user.markModified('walletTransactions');
   await user.save();
 
   return entry;

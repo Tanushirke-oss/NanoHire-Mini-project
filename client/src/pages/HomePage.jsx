@@ -313,13 +313,13 @@ export default function HomePage() {
             </div>
             <div className="composer-footer">
               <label className="composer-file-label" htmlFor="post-media-file">
-                Choose image or video
+                Choose file (image, video, pdf, ppt)
               </label>
               <input
                 id="post-media-file"
                 type="file"
                 className="composer-file-input"
-                accept="image/*,video/mp4,video/webm,video/quicktime"
+                accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.ppt,.pptx"
                 onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
               />
               <span className="composer-file-meta">{fileHint}</span>

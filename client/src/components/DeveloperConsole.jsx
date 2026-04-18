@@ -22,6 +22,10 @@ export default function DeveloperConsole() {
       setStats(data);
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load developer stats");
+      if (err?.response?.status === 401) {
+        // Stop polling if unauthorized
+        setIsOpen(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -71,6 +75,12 @@ export default function DeveloperConsole() {
                 </div>
 
                 <div className="stat-card">
+                  <div className="stat-label">Total Tasks</div>
+                  <div className="stat-value">{stats.totalTasks}</div>
+                  <div className="stat-detail">Created platform-wide</div>
+                </div>
+
+                <div className="stat-card">
                   <div className="stat-label">Open Tasks</div>
                   <div className="stat-value">{stats.totalOpenTasks}</div>
                   <div className="stat-detail">Awaiting applications</div>
@@ -83,9 +93,9 @@ export default function DeveloperConsole() {
                 </div>
 
                 <div className="stat-card">
-                  <div className="stat-label">Submitted Tasks</div>
+                  <div className="stat-label">Pending Review</div>
                   <div className="stat-value">{stats.totalSubmittedTasks}</div>
-                  <div className="stat-detail">Awaiting hirer review</div>
+                  <div className="stat-detail">Submitted by student</div>
                 </div>
 
                 <div className="stat-card">

@@ -47,6 +47,15 @@ body {
   overflow-x: hidden;
 }
 
+@media (min-width: 992px) {
+  body {
+    background:
+      radial-gradient(circle at 14% 18%, rgba(212, 175, 55, 0.28), transparent 42%),
+      radial-gradient(circle at 84% 10%, rgba(64, 224, 208, 0.24), transparent 44%),
+      linear-gradient(138deg, #d8ebe8 0%, #7dbfb5 24%, #13a895 52%, #05337a 84%, #07152b 100%);
+  }
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -2173,5 +2182,6 @@ button:active {
     transform: translateX(0);
   }
 }
+
 
 
